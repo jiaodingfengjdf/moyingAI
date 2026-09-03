@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { AIStreamState } from '@/lib/useAIStream';
 
 interface Props {
@@ -7,12 +8,19 @@ interface Props {
   state: AIStreamState;
   onInsert: (index: number) => void;
   onReplace: (index: number) => void;
+  onMerge?: (indices: number[]) => void;
   onClose: () => void;
   onRetry: () => void;
 }
 
-export default function AIOverlay({ position, state, onInsert, onReplace, onClose, onRetry }: Props) {
+export default function AIOverlay({ position, state, onInsert, onReplace, onMerge, onClose, onRetry }: Props) {
   const isRewrite = state.kind === 'rewrite';
+  const [selected, setSelected] = useState<number[]>([]);
+
+  function toggle(index: number) {
+    setSelected((s) => (s.includes(index) ? s.filter((x) => x !== index) : [...s, index]));
+  }
+
   return (
     <div
       className="fixed z-50 w-80 rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
@@ -20,7 +28,19 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onClos
     >
       <div className="flex items-center justify-between px-1">
         <span className="text-xs font-medium text-gray-500">{isRewrite ? 'AI 润色建议' : '三条续写方向'}</span>
-        <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-700">✕</button>
+        <span className="flex items-center gap-2">
+          {!isRewrite && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => selected.length > 0 && onMerge?.(selected)}
+              disabled={selected.length === 0}
+              className="text-xs text-blue-600 hover:underline disabled:text-gray-300"
+            >
+              合并插入{selected.length > 0 ? `（${selected.length}）` : ''}
+            </button>
+          )}
+          <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-700">✕</button>
+        </span>
       </div>
       {state.error && (
         <div className="mt-1 flex items-center justify-between rounded bg-red-50 px-2 py-1 text-xs text-red-600">
@@ -33,7 +53,15 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onClos
           <div key={b.id} className="rounded border border-gray-100 p-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-600">{b.label}</span>
-              {!b.done && <span className="text-xs text-amber-500">生成中…</span>}
+              <span className="flex items-center gap-2">
+                {!isRewrite && (
+                  <label className="flex items-center gap-1 text-xs text-gray-400">
+                    <input type="checkbox" checked={selected.includes(i)} onChange={() => toggle(i)} />
+                    选择
+                  </label>
+                )}
+                {!b.done && <span className="text-xs text-amber-500">生成中…</span>}
+              </span>
             </div>
             <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-gray-700">{b.text || '…'}</p>
             <div className="mt-1 flex gap-2 text-xs">

@@ -134,6 +134,20 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
     closeOverlay();
   }
 
+  function mergeBranches(indices: number[]) {
+    if (!editor) return;
+    const texts = indices
+      .map((i) => aiRef.current.state.branches[i]?.text)
+      .filter((t): t is string => Boolean(t));
+    if (texts.length === 0) return;
+    editor.chain().focus().insertContent(texts.join('\n\n')).run();
+    if (aiRef.current.state.requestId) {
+      void fetch(`/api/ai-requests/${aiRef.current.state.requestId}/accept`, { method: 'POST' })
+        .then(() => window.dispatchEvent(new Event('ai:adopted')));
+    }
+    closeOverlay();
+  }
+
   function closeOverlay() {
     ai.clear();
     setOverlayPos(null);
@@ -186,6 +200,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
           state={ai.state}
           onInsert={adopt}
           onReplace={adopt}
+          onMerge={mergeBranches}
           onClose={closeOverlay}
           onRetry={ai.retry}
         />
