@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { ChapterWithVolume, Volume } from '@/lib/types';
 import EntityPanel from './EntityPanel';
+import ForeshadowingPanel from './ForeshadowingPanel';
 
 interface Props {
   projectId: string;
@@ -268,10 +269,7 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
         </div>
       ))}
       <EntityPanel projectId={projectId} />
-      <div className="mt-6 border-t border-gray-100 pt-3">
-        <h3 className="mt-3 text-xs font-medium text-gray-400">伏笔跟踪</h3>
-        <p className="mt-1 text-xs text-gray-300">M3 里程碑启用</p>
-      </div>
+      <ForeshadowingPanel projectId={projectId} />
     </aside>
   );
 }
