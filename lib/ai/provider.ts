@@ -143,3 +143,15 @@ export async function streamChat(options: StreamChatOptions, configOverride?: AI
     },
   });
 }
+
+export async function complete(options: StreamChatOptions, configOverride?: AIConfig): Promise<string> {
+  const stream = await streamChat(options, configOverride);
+  const reader = stream.getReader();
+  let out = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    out += value;
+  }
+  return out;
+}
