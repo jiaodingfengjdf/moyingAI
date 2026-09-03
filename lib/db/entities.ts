@@ -104,7 +104,7 @@ export function listEntityStatus(projectId: string, db: DB = getDb()): EntitySta
         id: e.id,
         name: e.name,
         type: e.type,
-        latest: timeline[0]?.change ?? {},
+        latest: { ...e.fields, ...(timeline[0]?.change ?? {}) },
         latestNote: timeline[0]?.note ?? '',
         updatedAt: timeline[0]?.createdAt ?? e.updatedAt,
       };
