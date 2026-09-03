@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import Sidebar from './Sidebar';
 import ChapterEditor from './ChapterEditor';
 import InspectorPanel from './InspectorPanel';
+import SettingsModal from './SettingsModal';
 import { useAutosave } from '@/lib/useAutosave';
 import { countWords } from '@/lib/wordCount';
 import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
@@ -19,6 +20,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [currentChapterId, setCurrentChapterId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [wordCount, setWordCount] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
   const contentRef = useRef('');
 
   const volumes = useMemo(() => volumesData?.volumes ?? [], [volumesData]);
@@ -101,6 +103,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <SaveBadge state={autosave.state} onRetry={autosave.retry} />
           <span>{wordCount} 字</span>
+          <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-blue-600">设置</button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -135,6 +138,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           onRestored={() => void handleRestored()}
         />
       </div>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
