@@ -86,3 +86,29 @@ export function addTimelineEntry(
   const row = db.prepare('SELECT id, entityId, chapterId, change, note, createdAt FROM entity_timeline WHERE id = ?').get(id) as { change: string } & Omit<EntityTimelineEntry, 'change'>;
   return { ...row, change: JSON.parse(row.change) as Record<string, unknown> };
 }
+
+export interface EntityStatus {
+  id: string;
+  name: string;
+  type: string;
+  latest: Record<string, unknown>;
+  latestNote: string;
+  updatedAt: string;
+}
+
+export function listEntityStatus(projectId: string, db: DB = getDb()): EntityStatus[] {
+  return listEntities(projectId, db)
+    .map((e) => {
+      const timeline = listTimeline(e.id, db);
+      return {
+        id: e.id,
+        name: e.name,
+        type: e.type,
+        latest: timeline[0]?.change ?? {},
+        latestNote: timeline[0]?.note ?? '',
+        updatedAt: timeline[0]?.createdAt ?? e.updatedAt,
+      };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 10);
+}
