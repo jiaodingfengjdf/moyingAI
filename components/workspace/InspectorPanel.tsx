@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import SnapshotDiff from './SnapshotDiff';
-import type { AIRequest, ChapterSnapshot, ChapterWithVolume } from '@/lib/types';
+import type { AIRequest, ChapterSnapshot, ChapterWithVolume, ConsistencyIssue } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -23,11 +23,19 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
     chapter ? `/api/chapters/${chapter.id}/ai-requests` : null,
     fetcher,
   );
+  const { data: statusData } = useSWR<{ status: Array<{ id: string; name: string; type: string; latest: Record<string, unknown>; latestNote: string }> }>(
+    chapter ? `/api/projects/${chapter.projectId}/entity-status` : null,
+    fetcher,
+  );
   const [diff, setDiff] = useState<ChapterSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<'restore' | 'delete' | null>(null);
+  const [issues, setIssues] = useState<ConsistencyIssue[]>([]);
+  const [aiSkipped, setAiSkipped] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
 
@@ -36,6 +44,31 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
     window.addEventListener('ai:adopted', handler);
     return () => window.removeEventListener('ai:adopted', handler);
   }, [mutateRequests]);
+
+  const runCheck = useCallback(async (content: string) => {
+    if (!chapter) return;
+    setChecking(true);
+    try {
+      const res = await fetch(`/api/chapters/${chapter.id}/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setIssues((json.issues as ConsistencyIssue[]) ?? []);
+      setAiSkipped(json.aiSkipped ?? null);
+    } finally {
+      setChecking(false);
+    }
+  }, [chapter]);
+
+  useEffect(() => {
+    if (saveState !== 'saved' || !chapter) return;
+    if (chapter.content === lastCheckedHash.current) return;
+    lastCheckedHash.current = chapter.content;
+    const timer = setTimeout(() => void runCheck(chapter.content), 3000);
+    return () => clearTimeout(timer);
+  }, [saveState, chapter, runCheck]);
 
   async function createSnapshot() {
     if (!chapter) return;
@@ -163,13 +196,41 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
         </ul>
       </section>
 
-      <section className="rounded-lg border border-dashed border-gray-200 p-3 text-xs text-gray-300">
-        <h3 className="font-medium">角色状态 · 信息差</h3>
-        <p className="mt-1">M3 里程碑启用</p>
+      <section className="rounded-lg border border-gray-200 p-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-gray-500">一致性警报</h3>
+          <button onClick={() => chapter && void runCheck(chapter.content)} disabled={!chapter || checking} className="text-xs text-blue-600 disabled:text-gray-300">
+            {checking ? '检查中…' : '重新检查'}
+          </button>
+        </div>
+        {checking && <p className="mt-1 text-xs text-gray-400">正在检查…</p>}
+        {!checking && issues.length === 0 && <p className="mt-1 text-xs text-gray-400">{aiSkipped ? `已通过规则检查；${aiSkipped}` : '未发现冲突'}</p>}
+        <ul className="mt-1 space-y-2">
+          {issues.map((issue, i) => (
+            <li key={i} className="rounded border border-red-100 bg-red-50 p-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-red-700">{issue.type}</span>
+                <span className="text-gray-400">{issue.source === 'rule' ? '规则' : 'AI'}</span>
+              </div>
+              {issue.text && <p className="mt-0.5 text-red-600">{issue.text}</p>}
+              {issue.reason && <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>}
+              {issue.suggestion && <p className="mt-0.5 text-gray-600">建议：{issue.suggestion}</p>}
+            </li>
+          ))}
+        </ul>
       </section>
-      <section className="rounded-lg border border-dashed border-gray-200 p-3 text-xs text-gray-300">
-        <h3 className="font-medium">一致性警报</h3>
-        <p className="mt-1">M3 里程碑启用</p>
+
+      <section className="rounded-lg border border-gray-200 p-3">
+        <h3 className="text-xs font-medium text-gray-500">角色状态 · 信息差</h3>
+        {(statusData?.status ?? []).length === 0 && <p className="mt-1 text-xs text-gray-400">暂无实体状态</p>}
+        <ul className="mt-1 space-y-1">
+          {(statusData?.status ?? []).map((s) => (
+            <li key={s.id} className="text-xs text-gray-600">
+              <span className="font-medium">{s.name}</span>
+              <span className="text-gray-400"> · {Object.entries(s.latest).map(([k, v]) => `${k}=${String(v)}`).join(', ') || '无状态'}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {diff && chapter && (
