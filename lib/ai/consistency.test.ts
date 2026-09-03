@@ -13,7 +13,7 @@ beforeEach(() => {
 describe('runRuleChecks', () => {
   it('检测死者复生', () => {
     const p = createProject({ title: '书' }, db);
-    const e = createEntity({ projectId: p.id, type: 'character', name: '林砚', fields: { 状态: '死亡' } }, db);
+    createEntity({ projectId: p.id, type: 'character', name: '林砚', fields: { 状态: '死亡' } }, db);
     const issue = runRuleChecks({ projectId: p.id, content: '林砚按住刀柄站了起来。', db });
     expect(issue).toHaveLength(1);
     expect(issue[0].source).toBe('rule');
