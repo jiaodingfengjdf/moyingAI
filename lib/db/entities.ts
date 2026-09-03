@@ -66,7 +66,7 @@ export function deleteEntity(id: string, db: DB = getDb()): boolean {
 }
 
 export function listTimeline(entityId: string, db: DB = getDb()): EntityTimelineEntry[] {
-  const rows = db.prepare('SELECT id, entityId, chapterId, change, note, createdAt FROM entity_timeline WHERE entityId = ? ORDER BY createdAt DESC').all(entityId);
+  const rows = db.prepare('SELECT id, entityId, chapterId, change, note, createdAt FROM entity_timeline WHERE entityId = ? ORDER BY createdAt DESC, rowid DESC').all(entityId);
   return (rows as unknown as Array<{ change: string } & Omit<EntityTimelineEntry, 'change'>>).map((r) => ({
     ...r,
     change: JSON.parse(r.change) as Record<string, unknown>,

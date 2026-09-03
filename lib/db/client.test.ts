@@ -15,7 +15,7 @@ describe('migrations', () => {
       expect(names.has(table), `缺少表 ${table}`).toBe(true);
     }
     const uv = db.prepare('PRAGMA user_version').get() as { user_version: number };
-    expect(uv.user_version).toBe(2);
+    expect(uv.user_version).toBe(3);
     db.close();
   });
 

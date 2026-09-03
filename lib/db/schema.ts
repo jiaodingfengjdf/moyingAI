@@ -103,21 +103,20 @@ export const MIGRATIONS: string[] = [
   `
   CREATE VIRTUAL TABLE IF NOT EXISTS chapter_fts USING fts5(
     content,
-    content='chapter',
-    content_rowid='id'
+    chapterId UNINDEXED
   );
-  CREATE TRIGGER IF NOT EXISTS chapter_fts_ai AFTER INSERT ON chapter BEGIN
-    INSERT INTO chapter_fts(rowid, content) VALUES (new.id, new.content);
-  END;
-  CREATE TRIGGER IF NOT EXISTS chapter_fts_ad AFTER DELETE ON chapter BEGIN
-    INSERT INTO chapter_fts(chapter_fts, rowid, content) VALUES ('delete', old.id, old.content);
-  END;
-  CREATE TRIGGER IF NOT EXISTS chapter_fts_au AFTER UPDATE ON chapter BEGIN
-    INSERT INTO chapter_fts(chapter_fts, rowid, content) VALUES ('delete', old.id, old.content);
-    INSERT INTO chapter_fts(rowid, content) VALUES (new.id, new.content);
-  END;
-  INSERT INTO chapter_fts(rowid, content)
-    SELECT id, content FROM chapter
-    WHERE id NOT IN (SELECT rowid FROM chapter_fts);
+  INSERT INTO chapter_fts(content, chapterId)
+    SELECT content, id FROM chapter
+    WHERE id NOT IN (SELECT chapterId FROM chapter_fts);
+  `,
+  `
+  DROP TRIGGER IF EXISTS chapter_fts_ai;
+  DROP TRIGGER IF EXISTS chapter_fts_ad;
+  DROP TRIGGER IF EXISTS chapter_fts_au;
+  DROP TABLE IF EXISTS chapter_fts;
+  CREATE VIRTUAL TABLE chapter_fts USING fts5(content, chapterId UNINDEXED);
+  INSERT INTO chapter_fts(content, chapterId)
+    SELECT content, id FROM chapter
+    WHERE id NOT IN (SELECT chapterId FROM chapter_fts);
   `,
 ];
