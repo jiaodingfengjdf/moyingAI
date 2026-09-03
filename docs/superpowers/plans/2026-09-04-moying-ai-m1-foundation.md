@@ -912,7 +912,7 @@ describe('snapshots repo', () => {
     expect(restored?.content).toBe('v1');
     expect(restored?.wordCount).toBe(2);
     const list = listSnapshots(c.id, db);
-    expect(list).toHaveLength(3);
+    expect(list).toHaveLength(2);
     expect(list[0].label).toBe('回滚前自动快照');
     expect(list[0].content).toBe('v2');
   });
