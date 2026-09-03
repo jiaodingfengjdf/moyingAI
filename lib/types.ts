@@ -92,3 +92,42 @@ export interface AIRequest {
   accepted: boolean;
   createdAt: string;
 }
+
+export interface Relationship {
+  id: string;
+  projectId: string;
+  fromEntityId: string;
+  toEntityId: string;
+  fromName: string;
+  toName: string;
+  type: string;
+  strength: number;
+  chapterAnchorId: string | null;
+  note: string;
+}
+
+export interface Foreshadowing {
+  id: string;
+  projectId: string;
+  title: string;
+  status: ForeshadowingStatus;
+  plantChapterId: string | null;
+  simmerRangeStart: number | null;
+  simmerRangeEnd: number | null;
+  payoffChapterId: string | null;
+  relatedEntityIds: string[];
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+  plantChapterTitle: string | null;
+  payoffChapterTitle: string | null;
+  overdue: boolean;
+}
+
+export interface ConsistencyIssue {
+  type: string;
+  text: string;
+  reason: string;
+  suggestion: string;
+  source: 'rule' | 'llm';
+}
