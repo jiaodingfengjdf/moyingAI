@@ -100,4 +100,24 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_chapter_volume ON chapter(volumeId, "order");
   CREATE INDEX IF NOT EXISTS idx_snapshot_chapter ON chapter_snapshot(chapterId, version);
   `,
+  `
+  CREATE VIRTUAL TABLE IF NOT EXISTS chapter_fts USING fts5(
+    content,
+    content='chapter',
+    content_rowid='id'
+  );
+  CREATE TRIGGER IF NOT EXISTS chapter_fts_ai AFTER INSERT ON chapter BEGIN
+    INSERT INTO chapter_fts(rowid, content) VALUES (new.id, new.content);
+  END;
+  CREATE TRIGGER IF NOT EXISTS chapter_fts_ad AFTER DELETE ON chapter BEGIN
+    INSERT INTO chapter_fts(chapter_fts, rowid, content) VALUES ('delete', old.id, old.content);
+  END;
+  CREATE TRIGGER IF NOT EXISTS chapter_fts_au AFTER UPDATE ON chapter BEGIN
+    INSERT INTO chapter_fts(chapter_fts, rowid, content) VALUES ('delete', old.id, old.content);
+    INSERT INTO chapter_fts(rowid, content) VALUES (new.id, new.content);
+  END;
+  INSERT INTO chapter_fts(rowid, content)
+    SELECT id, content FROM chapter
+    WHERE id NOT IN (SELECT rowid FROM chapter_fts);
+  `,
 ];
