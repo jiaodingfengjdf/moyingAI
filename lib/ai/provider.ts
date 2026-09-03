@@ -70,7 +70,7 @@ export function sseToDeltaStream(body: ReadableStream<Uint8Array>): ReadableStre
 }
 
 export function mockDeltaStream(text: string): ReadableStream<string> {
-  const chunks = text.match(/.{1,6}/gs) ?? [text];
+  const chunks = text.match(/[\s\S]{1,6}/g) ?? [text];
   let index = 0;
   return new ReadableStream<string>({
     pull(ctrl) {
