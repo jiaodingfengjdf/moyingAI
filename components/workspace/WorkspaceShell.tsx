@@ -121,6 +121,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           ) : current ? (
             <ChapterEditor
               key={`${current.id}-${refreshToken}`}
+              chapterId={current.id}
               title={current.title}
               initialContent={current.content}
               onChange={handleContentChange}

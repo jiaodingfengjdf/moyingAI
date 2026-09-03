@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import SnapshotDiff from './SnapshotDiff';
-import type { ChapterSnapshot, ChapterWithVolume } from '@/lib/types';
+import type { AIRequest, ChapterSnapshot, ChapterWithVolume } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -19,6 +19,10 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
     chapter ? `/api/chapters/${chapter.id}/snapshots` : null,
     fetcher,
   );
+  const { data: requestsData, mutate: mutateRequests } = useSWR<{ requests: AIRequest[] }>(
+    chapter ? `/api/chapters/${chapter.id}/ai-requests` : null,
+    fetcher,
+  );
   const [diff, setDiff] = useState<ChapterSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState('');
@@ -26,6 +30,12 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [confirmingAction, setConfirmingAction] = useState<'restore' | 'delete' | null>(null);
 
   const snapshots = data?.snapshots ?? [];
+
+  useEffect(() => {
+    const handler = () => void mutateRequests();
+    window.addEventListener('ai:adopted', handler);
+    return () => window.removeEventListener('ai:adopted', handler);
+  }, [mutateRequests]);
 
   async function createSnapshot() {
     if (!chapter) return;
@@ -140,6 +150,19 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
         </ul>
       </section>
 
+      <section className="rounded-lg border border-gray-200 p-3">
+        <h3 className="text-xs font-medium text-gray-500">AI 建议历史</h3>
+        {(requestsData?.requests ?? []).length === 0 && <p className="mt-1 text-xs text-gray-400">暂无记录</p>}
+        <ul className="mt-1 space-y-1">
+          {(requestsData?.requests ?? []).map((r) => (
+            <li key={r.id} className="flex items-center justify-between text-xs text-gray-600">
+              <span>{kindLabel(r.kind)} · {r.model}</span>
+              <span className={r.accepted ? 'text-emerald-600' : 'text-gray-400'}>{r.accepted ? '已采纳' : '未采纳'}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section className="rounded-lg border border-dashed border-gray-200 p-3 text-xs text-gray-300">
         <h3 className="font-medium">角色状态 · 信息差</h3>
         <p className="mt-1">M3 里程碑启用</p>
@@ -169,4 +192,10 @@ function saveLabel(state: string): string {
     default:
       return '就绪';
   }
+}
+
+function kindLabel(kind: string): string {
+  if (kind === 'ghostwrite') return '伴写';
+  if (kind === 'rewrite') return '润色';
+  return kind;
 }
