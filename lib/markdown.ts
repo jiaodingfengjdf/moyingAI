@@ -33,8 +33,9 @@ function children(node: Node): Node[] {
 function inlineToText(node: Node): string {
   if (node.type === 'hardBreak') return '\n';
   if (node.type === 'text') {
-    let text = node.text ?? '';
-    for (const mark of node.marks ?? []) {
+    const textNode = node as TextNode;
+    let text = textNode.text ?? '';
+    for (const mark of textNode.marks ?? []) {
       if (mark.type === 'bold') text = `**${text}**`;
       else if (mark.type === 'italic') text = `*${text}*`;
       else if (mark.type === 'code') text = '`' + text + '`';
@@ -57,7 +58,7 @@ function blockToString(node: Node): string {
     case 'blockquote':
       return `> ${children(node).flatMap((child) => children(child).map(inlineToText)).join('')}`;
     case 'codeBlock':
-      return '```\n' + children(node).map((n) => (n.type === 'text' ? (n.text ?? '') : '')).join('\n') + '\n```';
+      return '```\n' + children(node).map((n) => (n.type === 'text' ? ((n as TextNode).text ?? '') : '')).join('\n') + '\n```';
     case 'bulletList':
       return children(node).map((item) => `- ${children(item).map(inlineToText).join('')}`).join('\n');
     case 'orderedList':

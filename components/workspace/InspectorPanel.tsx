@@ -21,12 +21,14 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   );
   const [diff, setDiff] = useState<ChapterSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
+  const [label, setLabel] = useState('');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState<'restore' | 'delete' | null>(null);
 
   const snapshots = data?.snapshots ?? [];
 
   async function createSnapshot() {
     if (!chapter) return;
-    const label = prompt('快照标签（可选）：');
     setBusy(true);
     try {
       await fetch(`/api/chapters/${chapter.id}/snapshots`, {
@@ -34,6 +36,7 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label }),
       });
+      setLabel('');
       await mutate();
     } finally {
       setBusy(false);
@@ -41,12 +44,19 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   }
 
   async function restore(s: ChapterSnapshot) {
-    if (!confirm(`回滚到版本 v${s.version}${s.label ? `（${s.label}）` : ''}？回滚前会自动保存当前状态。`)) return;
+    if (confirmingId !== s.id || confirmingAction !== 'restore') {
+      setConfirmingId(s.id);
+      setConfirmingAction('restore');
+      return;
+    }
+    setConfirmingId(null);
+    setConfirmingAction(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/snapshots/${s.id}/restore`, { method: 'POST' });
       if (res.ok) {
         setDiff(null);
+        await mutate();
         onRestored();
       }
     } finally {
@@ -55,7 +65,13 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   }
 
   async function remove(s: ChapterSnapshot) {
-    if (!confirm(`删除快照 v${s.version}？`)) return;
+    if (confirmingId !== s.id || confirmingAction !== 'delete') {
+      setConfirmingId(s.id);
+      setConfirmingAction('delete');
+      return;
+    }
+    setConfirmingId(null);
+    setConfirmingAction(null);
     await fetch(`/api/snapshots/${s.id}`, { method: 'DELETE' });
     await mutate();
   }
@@ -72,10 +88,20 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
       </section>
 
       <section className="rounded-lg border border-gray-200 p-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-medium text-gray-500">版本快照</h3>
+        <h3 className="text-xs font-medium text-gray-500">版本快照</h3>
+        <div className="mt-2 flex gap-1">
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void createSnapshot();
+            }}
+            placeholder="快照标签（可选）"
+            disabled={!chapter || busy}
+            className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-xs disabled:opacity-50"
+          />
           <button
-            onClick={createSnapshot}
+            onClick={() => void createSnapshot()}
             disabled={!chapter || busy}
             className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
           >
@@ -94,8 +120,20 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
               {s.label && <div className="text-xs text-gray-500">{s.label}</div>}
               <div className="mt-1 flex gap-2 text-xs">
                 <button onClick={() => setDiff(s)} className="text-blue-600 hover:underline">对比</button>
-                <button onClick={() => restore(s)} disabled={busy} className="text-emerald-600 hover:underline">回滚</button>
-                <button onClick={() => remove(s)} disabled={busy} className="text-red-500 hover:underline">删除</button>
+                <button
+                  onClick={() => void restore(s)}
+                  disabled={busy}
+                  className={confirmingId === s.id && confirmingAction === 'restore' ? 'text-red-600' : 'text-emerald-600 hover:underline'}
+                >
+                  {confirmingId === s.id && confirmingAction === 'restore' ? '确认回滚?' : '回滚'}
+                </button>
+                <button
+                  onClick={() => void remove(s)}
+                  disabled={busy}
+                  className={confirmingId === s.id && confirmingAction === 'delete' ? 'text-red-600' : 'text-red-500 hover:underline'}
+                >
+                  {confirmingId === s.id && confirmingAction === 'delete' ? '确认删?' : '删除'}
+                </button>
               </div>
             </li>
           ))}

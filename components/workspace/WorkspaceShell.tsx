@@ -84,7 +84,10 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   }
 
   async function handleRestored() {
-    await mutateChapters();
+    const updated = await mutateChapters();
+    const restored = (updated?.chapters ?? []).find((c) => c.id === currentChapterId);
+    contentRef.current = restored?.content ?? '';
+    setWordCount(countWords(restored?.content ?? ''));
     setRefreshToken((t) => t + 1);
   }
 

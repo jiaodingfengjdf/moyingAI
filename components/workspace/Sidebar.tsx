@@ -14,14 +14,26 @@ interface Props {
 
 export default function Sidebar({ projectId, volumes, chapters, currentChapterId, onSelect, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [creatingVolume, setCreatingVolume] = useState(false);
+  const [newVolumeTitle, setNewVolumeTitle] = useState('');
+  const [creatingForVolume, setCreatingForVolume] = useState<string | null>(null);
+  const [newChapterTitle, setNewChapterTitle] = useState('');
+  const [renamingVolumeId, setRenamingVolumeId] = useState<string | null>(null);
+  const [renamingVolumeTitle, setRenamingVolumeTitle] = useState('');
+  const [renamingChapterId, setRenamingChapterId] = useState<string | null>(null);
+  const [renamingChapterTitle, setRenamingChapterTitle] = useState('');
+  const [confirmingVolumeId, setConfirmingVolumeId] = useState<string | null>(null);
+  const [confirmingChapterId, setConfirmingChapterId] = useState<string | null>(null);
 
-  async function api(url: string, options?: RequestInit) {
+  async function call(url: string, options?: RequestInit) {
     setBusy(true);
+    setError('');
     try {
       const res = await fetch(url, options);
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(json.error ?? '操作失败');
+        setError(json.error ?? '操作失败');
         return null;
       }
       await onChanged();
@@ -31,55 +43,69 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
     }
   }
 
-  async function addVolume() {
-    const title = prompt('卷标题：');
-    if (!title?.trim()) return;
-    await api(`/api/projects/${projectId}/volumes`, {
+  async function submitVolume() {
+    const title = newVolumeTitle.trim();
+    if (!title) return;
+    await call(`/api/projects/${projectId}/volumes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim() }),
+      body: JSON.stringify({ title }),
     });
+    setNewVolumeTitle('');
+    setCreatingVolume(false);
   }
 
-  async function renameVolume(v: Volume) {
-    const title = prompt('新卷名：', v.title);
-    if (!title?.trim() || title.trim() === v.title) return;
-    await api(`/api/volumes/${v.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim() }),
-    });
-  }
-
-  async function removeVolume(v: Volume) {
-    if (!confirm(`删除卷「${v.title}」？其下所有章节与快照将一并删除。`)) return;
-    await api(`/api/volumes/${v.id}`, { method: 'DELETE' });
-  }
-
-  async function addChapter(volumeId: string) {
-    const title = prompt('章节标题：');
-    if (!title?.trim()) return;
-    const json = await api(`/api/projects/${projectId}/chapters`, {
+  async function submitChapter(volumeId: string) {
+    const title = newChapterTitle.trim();
+    if (!title) return;
+    const json = await call(`/api/projects/${projectId}/chapters`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ volumeId, title: title.trim() }),
+      body: JSON.stringify({ volumeId, title }),
     });
+    setNewChapterTitle('');
+    setCreatingForVolume(null);
     if (json?.chapter?.id) onSelect(json.chapter.id);
   }
 
-  async function renameChapter(c: ChapterWithVolume) {
-    const title = prompt('新章节名：', c.title);
-    if (!title?.trim() || title.trim() === c.title) return;
-    await api(`/api/chapters/${c.id}`, {
+  async function submitRenameVolume(id: string) {
+    const title = renamingVolumeTitle.trim();
+    if (!title) return;
+    await call(`/api/volumes/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim() }),
+      body: JSON.stringify({ title }),
     });
+    setRenamingVolumeId(null);
   }
 
-  async function removeChapter(c: ChapterWithVolume) {
-    if (!confirm(`删除章节「${c.title}」？其快照将一并删除。`)) return;
-    await api(`/api/chapters/${c.id}`, { method: 'DELETE' });
+  async function submitRenameChapter(id: string) {
+    const title = renamingChapterTitle.trim();
+    if (!title) return;
+    await call(`/api/chapters/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    setRenamingChapterId(null);
+  }
+
+  async function deleteVolume(v: Volume) {
+    if (confirmingVolumeId !== v.id) {
+      setConfirmingVolumeId(v.id);
+      return;
+    }
+    setConfirmingVolumeId(null);
+    await call(`/api/volumes/${v.id}`, { method: 'DELETE' });
+  }
+
+  async function deleteChapter(c: ChapterWithVolume) {
+    if (confirmingChapterId !== c.id) {
+      setConfirmingChapterId(c.id);
+      return;
+    }
+    setConfirmingChapterId(null);
+    await call(`/api/chapters/${c.id}`, { method: 'DELETE' });
   }
 
   return (
@@ -87,38 +113,155 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-gray-700">目录</h2>
         <button
-          onClick={addVolume}
+          onClick={() => {
+            setCreatingVolume((v) => !v);
+            setError('');
+          }}
           disabled={busy}
           className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
         >
           + 卷
         </button>
       </div>
-      {volumes.length === 0 && <p className="mt-2 text-xs text-gray-400">还没有卷，点「+ 卷」创建。</p>}
+      {error && <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">{error}</p>}
+
+      {creatingVolume && (
+        <div className="mt-2 flex gap-1">
+          <input
+            autoFocus
+            value={newVolumeTitle}
+            onChange={(e) => setNewVolumeTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitVolume();
+              if (e.key === 'Escape') setCreatingVolume(false);
+            }}
+            placeholder="卷标题"
+            className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1"
+          />
+          <button onClick={() => void submitVolume()} disabled={busy} className="text-emerald-600">确定</button>
+          <button onClick={() => setCreatingVolume(false)} className="text-gray-400">取消</button>
+        </div>
+      )}
+
+      {volumes.length === 0 && !creatingVolume && <p className="mt-2 text-xs text-gray-400">还没有卷，点「+ 卷」创建。</p>}
       {volumes.map((v) => (
         <div key={v.id} className="mt-2">
-          <div className="group flex items-center justify-between rounded px-2 py-1 hover:bg-gray-100">
-            <span className="font-medium">{v.title}</span>
-            <span className="hidden gap-1 group-hover:flex">
-              <button onClick={() => addChapter(v.id)} disabled={busy} className="text-gray-500 hover:text-blue-600">+章</button>
-              <button onClick={() => renameVolume(v)} disabled={busy} className="text-gray-500 hover:text-blue-600">改</button>
-              <button onClick={() => removeVolume(v)} disabled={busy} className="text-gray-500 hover:text-red-600">删</button>
-            </span>
-          </div>
+          {renamingVolumeId === v.id ? (
+            <div className="flex items-center gap-1 px-2 py-1">
+              <input
+                autoFocus
+                value={renamingVolumeTitle}
+                onChange={(e) => setRenamingVolumeTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitRenameVolume(v.id);
+                  if (e.key === 'Escape') setRenamingVolumeId(null);
+                }}
+                className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1"
+              />
+              <button onClick={() => void submitRenameVolume(v.id)} disabled={busy} className="text-emerald-600">存</button>
+              <button onClick={() => setRenamingVolumeId(null)} className="text-gray-400">取</button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded px-2 py-1 hover:bg-gray-100">
+              <span className="font-medium">{v.title}</span>
+              <span className="flex gap-1">
+                <button
+                  onClick={() => {
+                    setCreatingForVolume(creatingForVolume === v.id ? null : v.id);
+                    setNewChapterTitle('');
+                  }}
+                  disabled={busy}
+                  className="text-gray-500 hover:text-blue-600"
+                >
+                  +章
+                </button>
+                <button
+                  onClick={() => {
+                    setRenamingVolumeId(v.id);
+                    setRenamingVolumeTitle(v.title);
+                  }}
+                  disabled={busy}
+                  className="text-gray-500 hover:text-blue-600"
+                >
+                  改
+                </button>
+                <button
+                  onClick={() => void deleteVolume(v)}
+                  disabled={busy}
+                  className={confirmingVolumeId === v.id ? 'text-red-600' : 'text-gray-500 hover:text-red-600'}
+                >
+                  {confirmingVolumeId === v.id ? '确认删?' : '删'}
+                </button>
+              </span>
+            </div>
+          )}
+
+          {creatingForVolume === v.id && (
+            <div className="flex items-center gap-1 py-1 pl-6 pr-2">
+              <input
+                autoFocus
+                value={newChapterTitle}
+                onChange={(e) => setNewChapterTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitChapter(v.id);
+                  if (e.key === 'Escape') setCreatingForVolume(null);
+                }}
+                placeholder="章节标题"
+                className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1"
+              />
+              <button onClick={() => void submitChapter(v.id)} disabled={busy} className="text-emerald-600">确定</button>
+              <button onClick={() => setCreatingForVolume(null)} className="text-gray-400">取消</button>
+            </div>
+          )}
+
           {chapters
             .filter((c) => c.volumeId === v.id)
             .map((c) => (
-              <div key={c.id} className="group flex items-center justify-between rounded py-1 pl-6 pr-2 hover:bg-gray-100">
-                <button
-                  onClick={() => onSelect(c.id)}
-                  className={`flex-1 truncate text-left ${c.id === currentChapterId ? 'text-blue-600' : 'text-gray-700'}`}
-                >
-                  {c.title}
-                </button>
-                <span className="hidden gap-1 group-hover:flex">
-                  <button onClick={() => renameChapter(c)} disabled={busy} className="text-gray-400 hover:text-blue-600">改</button>
-                  <button onClick={() => removeChapter(c)} disabled={busy} className="text-gray-400 hover:text-red-600">删</button>
-                </span>
+              <div key={c.id}>
+                {renamingChapterId === c.id ? (
+                  <div className="flex items-center gap-1 py-1 pl-6 pr-2">
+                    <input
+                      autoFocus
+                      value={renamingChapterTitle}
+                      onChange={(e) => setRenamingChapterTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void submitRenameChapter(c.id);
+                        if (e.key === 'Escape') setRenamingChapterId(null);
+                      }}
+                      className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1"
+                    />
+                    <button onClick={() => void submitRenameChapter(c.id)} disabled={busy} className="text-emerald-600">存</button>
+                    <button onClick={() => setRenamingChapterId(null)} className="text-gray-400">取</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded py-1 pl-6 pr-2 hover:bg-gray-100">
+                    <button
+                      onClick={() => onSelect(c.id)}
+                      className={`flex-1 truncate text-left ${c.id === currentChapterId ? 'text-blue-600' : 'text-gray-700'}`}
+                    >
+                      {c.title}
+                    </button>
+                    <span className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          setRenamingChapterId(c.id);
+                          setRenamingChapterTitle(c.title);
+                        }}
+                        disabled={busy}
+                        className="text-gray-400 hover:text-blue-600"
+                      >
+                        改
+                      </button>
+                      <button
+                        onClick={() => void deleteChapter(c)}
+                        disabled={busy}
+                        className={confirmingChapterId === c.id ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}
+                      >
+                        {confirmingChapterId === c.id ? '确认删?' : '删'}
+                      </button>
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
         </div>
