@@ -63,6 +63,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const autosave = useAutosave(save);
 
   const outlineBridge = outlineBridgeRef.current;
+  const baseContentRef = useRef('');
   const dirty = contentRef.current !== lastSavedRef.current
     || autosave.state === 'pending'
     || autosave.state === 'saving'
@@ -77,8 +78,26 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   }
 
   function exitDiscard() {
+    const id = chapterIdRef.current;
+    const currentContent = contentRef.current;
+    const baseContent = baseContentRef.current;
+    const bridge = outlineBridgeRef.current;
     autosave.discard();
-    outlineBridgeRef.current?.discard();
+    bridge?.discard();
+    if (id && currentContent !== baseContent) {
+      void fetch(`/api/chapters/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: baseContent }),
+      }).catch(() => {});
+    }
+    if (id && bridge && bridge.text !== bridge.base) {
+      void fetch(`/api/chapters/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outline: bridge.base }),
+      }).catch(() => {});
+    }
     router.push('/');
   }
 
@@ -96,7 +115,10 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       await autosave.flush();
       setCurrentChapterId(id);
       const next = (chaptersData?.chapters ?? []).find((c) => c.id === id);
-      if (next) lastSavedRef.current = next.content;
+      if (next) {
+        lastSavedRef.current = next.content;
+        baseContentRef.current = next.content;
+      }
       contentRef.current = next?.content ?? '';
       setWordCount(countWords(next?.content ?? ''));
     },
@@ -146,6 +168,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     if (chapters.length === 0) {
       setCurrentChapterId(null);
       contentRef.current = '';
+      baseContentRef.current = '';
       setWordCount(0);
       return;
     }
@@ -153,6 +176,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       const first = chapters[0];
       setCurrentChapterId(first.id);
       contentRef.current = first.content;
+      baseContentRef.current = first.content;
       setWordCount(countWords(first.content));
     }
   }, [chapters, currentChapterId]);
@@ -166,6 +190,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     const updated = await mutateChapters();
     const restored = (updated?.chapters ?? []).find((c) => c.id === currentChapterId);
     contentRef.current = restored?.content ?? '';
+    baseContentRef.current = restored?.content ?? '';
     setWordCount(countWords(restored?.content ?? ''));
     setRefreshToken((t) => t + 1);
   }

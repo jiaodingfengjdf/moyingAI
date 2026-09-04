@@ -27,6 +27,7 @@ const EMPTY_DRAFT: SceneDraft = { title: '', goal: '', points: '' };
 export interface OutlineBridge {
   text: string;
   state: string;
+  base: string;
   flush: () => Promise<void>;
   discard: () => void;
 }
@@ -66,6 +67,7 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved, bridge }: 
     bridge.current = {
       text: outline,
       state: autosave.state,
+      base: chapter.outline,
       flush: autosave.flush,
       discard: autosave.discard,
     };
