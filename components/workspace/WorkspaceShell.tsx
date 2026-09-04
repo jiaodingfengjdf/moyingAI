@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import Sidebar from './Sidebar';
 import ChapterEditor from './ChapterEditor';
+import ChapterOutlineView from './ChapterOutlineView';
 import InspectorPanel from './InspectorPanel';
 import SettingsModal from './SettingsModal';
 import { useAutosave } from '@/lib/useAutosave';
@@ -21,6 +22,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [view, setView] = useState<'write' | 'outline'>('write');
   const contentRef = useRef('');
 
   const volumes = useMemo(() => volumesData?.volumes ?? [], [volumesData]);
@@ -119,13 +121,34 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           {loading ? (
             <p className="p-6 text-gray-500">加载中…</p>
           ) : current ? (
-            <ChapterEditor
-              key={`${current.id}-${refreshToken}`}
-              chapterId={current.id}
-              title={current.title}
-              initialContent={current.content}
-              onChange={handleContentChange}
-            />
+            <>
+              <div className="flex items-center justify-center gap-1 border-b border-gray-100 bg-white py-1">
+                {(['write', 'outline'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={`rounded px-3 py-0.5 text-xs ${view === v ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    {v === 'write' ? '正文' : '大纲'}
+                  </button>
+                ))}
+              </div>
+              {view === 'write' ? (
+                <ChapterEditor
+                  key={`${current.id}-${refreshToken}`}
+                  chapterId={current.id}
+                  title={current.title}
+                  initialContent={current.content}
+                  onChange={handleContentChange}
+                />
+              ) : (
+                <ChapterOutlineView
+                  key={`${current.id}-${refreshToken}`}
+                  chapter={current}
+                  onOutlineSaved={() => void mutateChapters()}
+                />
+              )}
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center text-gray-500">
               尚无章节，请在左侧创建第一卷并添加章节。
