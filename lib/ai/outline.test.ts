@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGenerateMessages, buildOutlineCheckMessages, mockGenerate, parseBeats, parseSkeletonPayload } from './outline';
+import { buildGenerateMessages, buildOutlineCheckMessages, mockGenerate, parseBeats, parseSkeletonPayload, runOutlineRuleChecks } from './outline';
 
 describe('parseSkeletonPayload', () => {
   it('解析纯 JSON 与围栏 JSON 并做字段兜底', () => {
@@ -36,4 +36,22 @@ it('逻辑预演消息包含卷/章大纲与场景目标', () => {
   expect(msgs[1].content).toContain('章纲');
   expect(msgs[1].content).toContain('目标');
   expect(msgs[0].content).toContain('机械降神');
+  expect(msgs[0].content).toContain('主线失焦');
+});
+
+it('规则预演覆盖重复场景、无目标与总纲过简', () => {
+  const issues = runOutlineRuleChecks({
+    bookOutline: '简',
+    chapterOutline: '章纲',
+    scenes: [
+      { title: '重复', goal: '' },
+      { title: '重复', goal: '目标' },
+      { title: '正常', goal: '目标' },
+    ],
+  });
+  const types = issues.map((i) => i.type);
+  expect(types).toContain('节拍断裂');
+  expect(types).toContain('主线失焦');
+  expect(types).toContain('悬念缺失');
+  expect(issues.every((i) => i.source === 'rule')).toBe(true);
 });

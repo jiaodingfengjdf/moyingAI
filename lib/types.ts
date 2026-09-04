@@ -26,6 +26,21 @@ export interface Volume {
   updatedAt: string;
 }
 
+export interface BookArc {
+  id: string;
+  title: string;
+  goal: string;
+  summary: string;
+}
+
+export interface ProjectOutline {
+  projectId: string;
+  synopsis: string;
+  theme: string;
+  arcs: BookArc[];
+  updatedAt: string;
+}
+
 export interface Chapter {
   id: string;
   volumeId: string;

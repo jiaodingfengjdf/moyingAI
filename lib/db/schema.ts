@@ -153,4 +153,13 @@ export const MIGRATIONS: string[] = [
     updatedAt TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS project_outline (
+    projectId TEXT PRIMARY KEY REFERENCES project(id) ON DELETE CASCADE,
+    synopsis TEXT NOT NULL DEFAULT '',
+    theme TEXT NOT NULL DEFAULT '',
+    arcs TEXT NOT NULL DEFAULT '[]',
+    updatedAt TEXT NOT NULL
+  );
+  `,
 ];

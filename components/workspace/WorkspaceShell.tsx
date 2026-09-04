@@ -246,6 +246,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       <div className="flex min-h-0 flex-1">
         <Sidebar
           projectId={projectId}
+          projectTitle={projectData?.project?.title ?? ''}
           volumes={volumes}
           chapters={chapters}
           currentChapterId={currentChapterId}

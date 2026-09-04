@@ -5,6 +5,7 @@ import type { ChapterWithVolume, Volume } from '@/lib/types';
 import EntityPanel from './EntityPanel';
 import ForeshadowingPanel from './ForeshadowingPanel';
 import VolumeOutlineModal from './VolumeOutlineModal';
+import ProjectOutlineModal from './ProjectOutlineModal';
 
 interface SearchHit {
   id: string;
@@ -15,6 +16,7 @@ interface SearchHit {
 
 interface Props {
   projectId: string;
+  projectTitle: string;
   volumes: Volume[];
   chapters: ChapterWithVolume[];
   currentChapterId: string | null;
@@ -23,7 +25,7 @@ interface Props {
   flushPending: () => Promise<void>;
 }
 
-export default function Sidebar({ projectId, volumes, chapters, currentChapterId, onSelect, onChanged, flushPending }: Props) {
+export default function Sidebar({ projectId, projectTitle, volumes, chapters, currentChapterId, onSelect, onChanged, flushPending }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [creatingVolume, setCreatingVolume] = useState(false);
@@ -37,6 +39,7 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
   const [confirmingVolumeId, setConfirmingVolumeId] = useState<string | null>(null);
   const [confirmingChapterId, setConfirmingChapterId] = useState<string | null>(null);
   const [outlineVolume, setOutlineVolume] = useState<Volume | null>(null);
+  const [bookOutlineOpen, setBookOutlineOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,16 +162,21 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
     <aside className="flex w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white p-3 text-sm">
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-gray-700">目录</h2>
-        <button
-          onClick={() => {
-            setCreatingVolume((v) => !v);
-            setError('');
-          }}
-          disabled={busy}
-          className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
-        >
-          + 卷
-        </button>
+        <span className="flex gap-1">
+          <button onClick={() => setBookOutlineOpen(true)} disabled={busy} title="全书总纲" className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100">
+            总纲
+          </button>
+          <button
+            onClick={() => {
+              setCreatingVolume((v) => !v);
+              setError('');
+            }}
+            disabled={busy}
+            className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
+          >
+            + 卷
+          </button>
+        </span>
       </div>
       <div className="mt-2">
         <input
@@ -347,6 +355,14 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
           projectId={projectId}
           volume={outlineVolume}
           onClose={() => setOutlineVolume(null)}
+          onChanged={onChanged}
+        />
+      )}
+      {bookOutlineOpen && (
+        <ProjectOutlineModal
+          projectId={projectId}
+          projectTitle={projectTitle}
+          onClose={() => setBookOutlineOpen(false)}
           onChanged={onChanged}
         />
       )}
