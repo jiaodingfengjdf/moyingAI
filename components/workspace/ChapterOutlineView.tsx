@@ -6,6 +6,7 @@ import { useAutosave } from '@/lib/useAutosave';
 import { BEAT_TEMPLATES, templateFirstChapterBeats } from '@/lib/beats/templates';
 import type { Beat } from '@/lib/beats/templates';
 import type { ChapterWithVolume, ConsistencyIssue, Scene } from '@/lib/types';
+import MonteCarloModal from './MonteCarloModal';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -38,6 +39,7 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
   const [checkIssues, setCheckIssues] = useState<ConsistencyIssue[]>([]);
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkSkipped, setCheckSkipped] = useState('');
+  const [mcOpen, setMcOpen] = useState(false);
   const { data, mutate } = useSWR<{ scenes: Scene[] }>(`/api/chapters/${chapter.id}/scenes`, fetcher);
   const scenes = data?.scenes ?? [];
 
@@ -312,9 +314,12 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
       </ul>
       <div className="mt-4 flex items-center justify-between">
         <h4 className="font-medium text-gray-700">逻辑预演</h4>
-        <button onClick={() => void runOutlineCheck()} disabled={checkLoading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white disabled:opacity-50">
-          {checkLoading ? '检查中…' : '预演'}
-        </button>
+        <span className="flex gap-2">
+          <button onClick={() => setMcOpen(true)} className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-100">分支推演</button>
+          <button onClick={() => void runOutlineCheck()} disabled={checkLoading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white disabled:opacity-50">
+            {checkLoading ? '检查中…' : '预演'}
+          </button>
+        </span>
       </div>
       {checkSkipped && <p className="mt-1 text-xs text-amber-600">{checkSkipped}</p>}
       {checkIssues.length === 0 && !checkLoading && <p className="mt-1 text-xs text-gray-400">未发现问题</p>}
@@ -328,6 +333,13 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
           </li>
         ))}
       </ul>
+      {mcOpen && (
+        <MonteCarloModal
+          chapter={chapter}
+          onClose={() => setMcOpen(false)}
+          onOutlineChanged={onOutlineSaved}
+        />
+      )}
     </div>
   );
 }
