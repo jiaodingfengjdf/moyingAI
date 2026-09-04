@@ -131,3 +131,17 @@ export interface ConsistencyIssue {
   suggestion: string;
   source: 'rule' | 'llm';
 }
+
+export type SceneStatus = 'draft' | 'done';
+
+export interface Scene {
+  id: string;
+  chapterId: string;
+  title: string;
+  goal: string;
+  points: string;
+  status: SceneStatus;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}

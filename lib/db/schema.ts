@@ -119,4 +119,18 @@ export const MIGRATIONS: string[] = [
     SELECT content, id FROM chapter
     WHERE id NOT IN (SELECT chapterId FROM chapter_fts);
   `,
+  `
+  CREATE TABLE IF NOT EXISTS scene (
+    id TEXT PRIMARY KEY,
+    chapterId TEXT NOT NULL REFERENCES chapter(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    goal TEXT NOT NULL DEFAULT '',
+    points TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    "order" INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_scene_chapter ON scene(chapterId, "order");
+  `,
 ];
