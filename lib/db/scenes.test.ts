@@ -3,7 +3,7 @@ import { openDatabase, type DB } from './client';
 import { createProject } from './projects';
 import { createVolume } from './volumes';
 import { createChapter, deleteChapter } from './chapters';
-import { createScene, deleteScene, getScene, listScenes, updateScene } from './scenes';
+import { createScene, deleteScene, listScenes, updateScene } from './scenes';
 
 let db: DB;
 
