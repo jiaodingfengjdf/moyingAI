@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { useAutosave } from '@/lib/useAutosave';
+import { BEAT_TEMPLATES, templateFirstChapterBeats } from '@/lib/beats/templates';
+import type { Beat } from '@/lib/beats/templates';
 import type { ChapterWithVolume, Scene } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -27,6 +29,12 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [templateId, setTemplateId] = useState(BEAT_TEMPLATES[0].id);
+  const [templateMsg, setTemplateMsg] = useState('');
+  const [genGoal, setGenGoal] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState('');
+  const [preview, setPreview] = useState<Beat[] | null>(null);
   const { data, mutate } = useSWR<{ scenes: Scene[] }>(`/api/chapters/${chapter.id}/scenes`, fetcher);
   const scenes = data?.scenes ?? [];
 
@@ -99,6 +107,68 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
     await mutate();
   }
 
+  async function applyChapterTemplate() {
+    const template = BEAT_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+    const beats = templateFirstChapterBeats(template);
+    setBusy(true);
+    setTemplateMsg('');
+    try {
+      const res = await fetch('/api/beats/apply-chapter-beats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id, beats }),
+      });
+      if (!res.ok) return;
+      setTemplateMsg(`已按「${template.name}」添加 ${beats.length} 个场景卡`);
+      await mutate();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateBeats() {
+    if (!genGoal.trim()) return;
+    setGenLoading(true);
+    setGenError('');
+    setPreview(null);
+    try {
+      const res = await fetch('/api/ai/outline-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'chapter', chapterId: chapter.id, prompt: genGoal.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGenError(json.error ?? '生成失败');
+        return;
+      }
+      setPreview((json.payload?.beats as Beat[]) ?? []);
+    } finally {
+      setGenLoading(false);
+    }
+  }
+
+  async function applyPreview() {
+    if (!preview || preview.length === 0) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/beats/apply-chapter-beats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id, beats: preview }),
+      });
+      if (res.ok) {
+        setTemplateMsg(`已应用 AI 骨架，添加 ${preview.length} 个场景卡`);
+        setPreview(null);
+        setGenGoal('');
+        await mutate();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-8 py-6 text-sm">
       <div className="flex items-center justify-between">
@@ -121,6 +191,47 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
         <button onClick={openNew} disabled={busy} className="rounded bg-blue-600 px-3 py-1 text-xs text-white disabled:opacity-50">
           + 场景
         </button>
+      </div>
+      <div className="mt-3 rounded border border-dashed border-gray-200 p-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="rounded border border-gray-300 px-2 py-1">
+            {BEAT_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button onClick={() => void applyChapterTemplate()} disabled={busy} className="text-blue-600 hover:underline disabled:text-gray-300">
+            应用章模板
+          </button>
+          <span className="text-gray-300">|</span>
+          <button onClick={() => void generateBeats()} disabled={busy || genLoading} className="text-blue-600 hover:underline disabled:text-gray-300">
+            AI 生成场景骨架
+          </button>
+        </div>
+        {templateMsg && <p className="mt-1 text-xs text-emerald-600">{templateMsg}</p>}
+        {genLoading && <p className="mt-1 text-xs text-amber-500">生成中…</p>}
+        {genError && <p className="mt-1 text-xs text-red-600">{genError}</p>}
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={genGoal}
+            onChange={(e) => setGenGoal(e.target.value)}
+            placeholder="本章目标（AI 生成用，可选）"
+            className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </div>
+        {preview && (
+          <div className="mt-2 rounded bg-gray-50 p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-600">预览：{preview.length} 个场景</span>
+              <span className="flex gap-2">
+                <button onClick={() => void applyPreview()} disabled={busy} className="text-emerald-600 hover:underline">应用</button>
+                <button onClick={() => setPreview(null)} className="text-gray-400 hover:underline">放弃</button>
+              </span>
+            </div>
+            <ul className="mt-1 space-y-1 text-xs text-gray-600">
+              {preview.map((b, i) => (
+                <li key={i}><span className="font-medium">{b.title}</span>：{b.goal}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
