@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ChapterWithVolume, Volume } from '@/lib/types';
 import EntityPanel from './EntityPanel';
 import ForeshadowingPanel from './ForeshadowingPanel';
+import VolumeOutlineModal from './VolumeOutlineModal';
 
 interface Props {
   projectId: string;
@@ -27,6 +28,7 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
   const [renamingChapterTitle, setRenamingChapterTitle] = useState('');
   const [confirmingVolumeId, setConfirmingVolumeId] = useState<string | null>(null);
   const [confirmingChapterId, setConfirmingChapterId] = useState<string | null>(null);
+  const [outlineVolume, setOutlineVolume] = useState<Volume | null>(null);
 
   async function call(url: string, options?: RequestInit) {
     setBusy(true);
@@ -167,6 +169,7 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
             <div className="flex items-center justify-between rounded px-2 py-1 hover:bg-gray-100">
               <span className="font-medium">{v.title}</span>
               <span className="flex gap-1">
+                <button onClick={() => setOutlineVolume(v)} disabled={busy} title="卷大纲与节拍" className="text-gray-500 hover:text-blue-600">纲</button>
                 <button
                   onClick={() => {
                     setCreatingForVolume(creatingForVolume === v.id ? null : v.id);
@@ -270,6 +273,14 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
       ))}
       <EntityPanel projectId={projectId} />
       <ForeshadowingPanel projectId={projectId} />
+      {outlineVolume && (
+        <VolumeOutlineModal
+          projectId={projectId}
+          volume={outlineVolume}
+          onClose={() => setOutlineVolume(null)}
+          onChanged={onChanged}
+        />
+      )}
     </aside>
   );
 }
