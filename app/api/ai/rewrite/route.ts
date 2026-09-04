@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         const send = (event: unknown) => {
           if (!closed) ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         };
+        let receivedText = false;
         const closeOnce = () => {
           if (!closed) {
             closed = true;
@@ -46,11 +47,13 @@ export async function POST(req: NextRequest) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
+            if (value.trim()) receivedText = true;
             send({ type: 'delta', branch: 0, text: value });
           }
         } catch (err) {
           send({ type: 'error', branch: 0, message: String((err as Error).message) });
         } finally {
+          if (!receivedText) send({ type: 'error', branch: 0, message: '模型未返回正文内容，请重试' });
           send({ type: 'done', branch: 0 });
           closeOnce();
         }

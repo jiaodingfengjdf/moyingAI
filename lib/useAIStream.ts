@@ -83,14 +83,19 @@ export function useAIStream() {
             }
             if (event.type === 'done' && typeof event.branch === 'number') {
               const branches = s.branches.map((b, i) => (i === event.branch ? { ...b, done: true } : b));
-              return { ...s, branches, loading: !branches.every((b) => b.done) };
+              const emptyDone = branches.some((b) => b.done && !b.text.trim());
+              return { ...s, branches, loading: !branches.every((b) => b.done), error: s.error ?? (emptyDone ? '模型未返回内容，请重试' : null) };
             }
             if (event.type === 'error') return { ...s, error: s.error ?? event.message ?? '生成失败', loading: false };
             return s;
           });
         }
       }
-      setState((s) => ({ ...s, loading: false }));
+      setState((s) => ({
+        ...s,
+        loading: false,
+        error: s.error ?? (s.branches.every((b) => !b.text.trim()) ? '模型未返回内容，请重试' : null),
+      }));
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       setState((s) => ({ ...s, loading: false, error: (err as Error).message }));

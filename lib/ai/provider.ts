@@ -39,6 +39,26 @@ export function sseToDeltaStream(body: ReadableStream<Uint8Array>): ReadableStre
   return new ReadableStream<string>({
     async start(ctrl) {
       try {
+        const handleLine = (line: string) => {
+          const trimmed = line.trim();
+          const rawData = trimmed.startsWith('data:') ? trimmed.slice(5) : trimmed.startsWith('{') ? trimmed : '';
+          if (!rawData) return;
+          const data = rawData.trim();
+          if (data === '[DONE]') return;
+          try {
+            const json = JSON.parse(data) as {
+              choices?: Array<{
+                delta?: { content?: string; text?: string };
+                message?: { content?: string };
+              }>;
+            };
+            const choice = json.choices?.[0];
+            const content = choice?.delta?.content ?? choice?.delta?.text ?? choice?.message?.content;
+            if (typeof content === 'string' && content) ctrl.enqueue(content);
+          } catch {
+            // 忽略无法解析的行
+          }
+        };
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -46,19 +66,10 @@ export function sseToDeltaStream(body: ReadableStream<Uint8Array>): ReadableStre
           const lines = buffer.split('\n');
           buffer = lines.pop() ?? '';
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const data = trimmed.slice(5).trim();
-            if (data === '[DONE]') return;
-            try {
-              const json = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-              const delta = json.choices?.[0]?.delta?.content;
-              if (typeof delta === 'string' && delta) ctrl.enqueue(delta);
-            } catch {
-              // 忽略无法解析的行
-            }
+            handleLine(line);
           }
         }
+        if (buffer.trim()) handleLine(buffer);
       } finally {
         ctrl.close();
       }

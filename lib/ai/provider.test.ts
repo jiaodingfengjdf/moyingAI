@@ -27,6 +27,19 @@ describe('sseToDeltaStream', () => {
     const raw = 'data: {"choices":[{"delta":{"content":"你"}}]}\n\ndata: {"choices":[{"delta":{"content":"好"}}]}\n\ndata: [DONE]\n\n';
     expect(await collect(sseToDeltaStream(sseBody(raw)))).toBe('你好');
   });
+
+  it('兼容 message.content 与 delta.text 字段', async () => {
+    const raw =
+      'data: {"choices":[{"message":{"content":"非流式"}}]}\n\n' +
+      'data: {"choices":[{"delta":{"text":"片段"}}]}\n\n' +
+      'data: [DONE]\n\n';
+    expect(await collect(sseToDeltaStream(sseBody(raw)))).toBe('非流式片段');
+  });
+
+  it('兼容无 data 前缀的普通 JSON 响应', async () => {
+    const raw = '{"choices":[{"message":{"content":"普通 JSON"}}]}';
+    expect(await collect(sseToDeltaStream(sseBody(raw)))).toBe('普通 JSON');
+  });
 });
 
 describe('streamChat', () => {
