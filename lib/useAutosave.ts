@@ -17,6 +17,7 @@ export function useAutosave(save: SaveFn, delay = 500) {
   const schedule = useCallback((value: string) => controller.schedule(value), [controller]);
   const flush = useCallback(() => controller.flush(), [controller]);
   const retry = useCallback(() => controller.retry(), [controller]);
+  const discard = useCallback(() => controller.discard(), [controller]);
 
-  return { state, schedule, flush, retry };
+  return { state, schedule, flush, retry, discard };
 }

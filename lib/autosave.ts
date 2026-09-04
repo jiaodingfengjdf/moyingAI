@@ -64,4 +64,11 @@ export class AutosaveController {
       void this.save(value).catch(() => {});
     }
   }
+
+  discard(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.pending = null;
+    this.setState('idle');
+  }
 }

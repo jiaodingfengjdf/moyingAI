@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import ChapterEditor from './ChapterEditor';
 import ChapterOutlineView from './ChapterOutlineView';
@@ -9,6 +10,7 @@ import InspectorPanel from './InspectorPanel';
 import SettingsModal from './SettingsModal';
 import ComplianceModal from './ComplianceModal';
 import ShortcutsModal from './ShortcutsModal';
+import type { OutlineBridge } from './ChapterOutlineView';
 import { useAutosave } from '@/lib/useAutosave';
 import { countWords } from '@/lib/wordCount';
 import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
@@ -16,6 +18,7 @@ import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function WorkspaceShell({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const { data: projectData } = useSWR<{ project: Project }>(`/api/projects/${projectId}`, fetcher);
   const { data: volumesData, mutate: mutateVolumes } = useSWR<{ volumes: Volume[] }>(`/api/projects/${projectId}/volumes`, fetcher);
   const { data: chaptersData, mutate: mutateChapters } = useSWR<{ chapters: ChapterWithVolume[] }>(`/api/projects/${projectId}/chapters`, fetcher);
@@ -27,10 +30,13 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [showCompliance, setShowCompliance] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [showExit, setShowExit] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const [view, setView] = useState<'write' | 'outline'>('write');
   const contentRef = useRef('');
   const lastSavedRef = useRef('');
   const chapterIdRef = useRef<string | null>(null);
+  const outlineBridgeRef = useRef<OutlineBridge | null>(null);
   chapterIdRef.current = currentChapterId;
 
   const volumes = useMemo(() => volumesData?.volumes ?? [], [volumesData]);
@@ -55,6 +61,26 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   );
 
   const autosave = useAutosave(save);
+
+  const outlineBridge = outlineBridgeRef.current;
+  const dirty = contentRef.current !== lastSavedRef.current
+    || autosave.state === 'pending'
+    || autosave.state === 'saving'
+    || autosave.state === 'error'
+    || Boolean(outlineBridge && (outlineBridge.state === 'pending' || outlineBridge.state === 'saving' || outlineBridge.state === 'error'));
+
+  async function exitAndSave() {
+    setExiting(true);
+    await autosave.flush();
+    await outlineBridgeRef.current?.flush();
+    router.push('/');
+  }
+
+  function exitDiscard() {
+    autosave.discard();
+    outlineBridgeRef.current?.discard();
+    router.push('/');
+  }
 
   const handleContentChange = useCallback(
     (content: string) => {
@@ -157,6 +183,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           <button onClick={() => setShowCompliance(true)} className="text-gray-500 hover:text-blue-600">合规</button>
           <button onClick={() => setShowShortcuts(true)} className="text-gray-500 hover:text-blue-600">快捷键</button>
           <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-blue-600">设置</button>
+          <button onClick={() => setShowExit(true)} className="text-gray-500 hover:text-red-600">退出</button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -202,6 +229,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
                   key={`${current.id}-${refreshToken}`}
                   chapter={current}
                   onOutlineSaved={() => void mutateChapters()}
+                  bridge={outlineBridgeRef}
                 />
               )}
             </>
@@ -221,6 +249,23 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showCompliance && <ComplianceModal projectId={projectId} onClose={() => setShowCompliance(false)} />}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showExit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <h3 className="font-medium">退出到主页</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {dirty ? '当前有尚未保存的内容，请选择处理方式。' : '当前没有未保存内容。'}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setShowExit(false)} disabled={exiting} className="rounded border border-gray-300 px-3 py-1.5">取消</button>
+              <button onClick={exitDiscard} disabled={exiting} className="rounded border border-gray-300 px-3 py-1.5 text-gray-600">不保存退出</button>
+              <button onClick={() => void exitAndSave()} disabled={exiting} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">
+                {exiting ? '保存中…' : '保存并退出'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

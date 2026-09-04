@@ -62,4 +62,14 @@ describe('AutosaveController', () => {
     await vi.runAllTimersAsync();
     expect(save).toHaveBeenCalledWith('a');
   });
+
+  it('discard 丢弃待存且不调用保存', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const c = new AutosaveController(save);
+    c.schedule('a');
+    c.discard();
+    await vi.runAllTimersAsync();
+    expect(save).not.toHaveBeenCalled();
+    expect(c.getState()).toBe('idle');
+  });
 });

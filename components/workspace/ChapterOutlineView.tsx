@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useAutosave } from '@/lib/useAutosave';
 import { BEAT_TEMPLATES, templateFirstChapterBeats } from '@/lib/beats/templates';
@@ -13,6 +13,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 interface Props {
   chapter: ChapterWithVolume;
   onOutlineSaved: () => void;
+  bridge?: React.MutableRefObject<OutlineBridge | null>;
 }
 
 interface SceneDraft {
@@ -23,7 +24,14 @@ interface SceneDraft {
 
 const EMPTY_DRAFT: SceneDraft = { title: '', goal: '', points: '' };
 
-export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
+export interface OutlineBridge {
+  text: string;
+  state: string;
+  flush: () => Promise<void>;
+  discard: () => void;
+}
+
+export default function ChapterOutlineView({ chapter, onOutlineSaved, bridge }: Props) {
   const [outline, setOutline] = useState(chapter.outline);
   const [editing, setEditing] = useState<Scene | 'new' | null>(null);
   const [draft, setDraft] = useState<SceneDraft>(EMPTY_DRAFT);
@@ -52,6 +60,19 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
     if (!res.ok) throw new Error('大纲保存失败');
     onOutlineSaved();
   });
+
+  useEffect(() => {
+    if (!bridge) return;
+    bridge.current = {
+      text: outline,
+      state: autosave.state,
+      flush: autosave.flush,
+      discard: autosave.discard,
+    };
+    return () => {
+      bridge.current = null;
+    };
+  }, [bridge, outline, autosave.state, autosave.flush, autosave.discard]);
 
   function openNew() {
     setDraft(EMPTY_DRAFT);
