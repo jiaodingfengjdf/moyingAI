@@ -45,12 +45,17 @@ export async function assembleContext(
   const chapter = getChapter(opts.chapterId, db);
   if (!chapter) throw new Error('章节不存在');
   const volume = getVolume(chapter.volumeId, db);
-  const entities = entityMatch(opts.before + opts.after, listEntities(opts.projectId, db));
+  const allEntities = listEntities(opts.projectId, db);
+  const currentEntities = entityMatch(opts.before + opts.after, allEntities);
   const queryText = opts.before.slice(-2000);
   const semantic = await semanticSearch(opts.projectId, queryText, 3, db).catch(() => []);
   const history = semantic.length > 0
     ? semantic.map((h) => ({ title: h.title, volumeTitle: '', snippet: h.snippet }))
     : searchHistory(opts.projectId, queryText, db);
+  const historyEntities = entityMatch(history.map((h) => h.snippet).join(' '), allEntities);
+  const byId = new Map<string, typeof allEntities[number]>();
+  for (const e of [...historyEntities, ...currentEntities]) byId.set(e.id, e);
+  const entities = [...byId.values()];
   return {
     volumeTitle: volume?.title ?? '',
     chapterTitle: chapter.title,

@@ -41,7 +41,7 @@ export default function InspectorPanel({
     chapter ? `/api/chapters/${chapter.id}/ai-requests` : null,
     fetcher,
   );
-  const { data: statusData } = useSWR<{ status: Array<{ id: string; name: string; type: string; latest: Record<string, unknown>; latestNote: string }> }>(
+  const { data: statusData, mutate: mutateStatus } = useSWR<{ status: Array<{ id: string; name: string; type: string; latest: Record<string, unknown>; latestNote: string }> }>(
     chapter ? `/api/projects/${chapter.projectId}/entity-status` : null,
     fetcher,
   );
@@ -64,6 +64,8 @@ export default function InspectorPanel({
   const [exportMsg, setExportMsg] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
   const [secretsOpen, setSecretsOpen] = useState(false);
+  const [entityScanBusy, setEntityScanBusy] = useState(false);
+  const [entityScanMsg, setEntityScanMsg] = useState('');
   const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
@@ -131,6 +133,30 @@ export default function InspectorPanel({
       }
     } finally {
       setEmotionBusy(false);
+    }
+  }
+
+  async function runEntityScan() {
+    if (!chapter) return;
+    setEntityScanBusy(true);
+    setEntityScanMsg('');
+    try {
+      const res = await fetch('/api/ai/entity-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEntityScanMsg(json.error ?? '识别失败');
+        return;
+      }
+      setEntityScanMsg(
+        `新增 ${json.timelineAdded ?? 0} 条状态${json.aiSkipped ? `；${json.aiSkipped}` : ''}${(json.unknownNames ?? []).length ? `；未识别：${json.unknownNames.join('、')}` : ''}`,
+      );
+      await mutateStatus();
+    } finally {
+      setEntityScanBusy(false);
     }
   }
 
@@ -411,8 +437,14 @@ export default function InspectorPanel({
       <section className="rounded-lg border border-gray-200 p-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-medium text-gray-500">角色状态 · 信息差</h3>
-          <button onClick={() => setSecretsOpen(true)} disabled={!chapter} className="text-xs text-purple-600 disabled:text-gray-300">秘密矩阵</button>
+          <span className="flex gap-2">
+            <button onClick={() => void runEntityScan()} disabled={!chapter || entityScanBusy} className="text-xs text-blue-600 disabled:text-gray-300">
+              {entityScanBusy ? '识别中…' : '实体识别'}
+            </button>
+            <button onClick={() => setSecretsOpen(true)} disabled={!chapter} className="text-xs text-purple-600 disabled:text-gray-300">秘密矩阵</button>
+          </span>
         </div>
+        {entityScanMsg && <p className="mt-1 text-xs text-emerald-600">{entityScanMsg}</p>}
         {(statusData?.status ?? []).length === 0 && <p className="mt-1 text-xs text-gray-400">暂无实体状态</p>}
         <ul className="mt-1 space-y-1">
           {(statusData?.status ?? []).map((s) => (
@@ -526,6 +558,7 @@ function kindLabel(kind: string): string {
   if (kind === 'style') return '文风迁移';
   if (kind === 'poison') return '毒点审查';
   if (kind === 'emotion') return '情绪分析';
+  if (kind === 'entity-scan') return '实体识别';
   if (kind === 'outline') return '大纲骨架';
   if (kind === 'outline-check') return '大纲预演';
   if (kind === 'mc') return '分支推演';

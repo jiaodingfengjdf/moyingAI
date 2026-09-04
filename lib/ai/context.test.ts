@@ -50,4 +50,14 @@ describe('assembleContext', () => {
     expect(rewrite[1].content).toContain('选中片段');
     expect(rewrite[1].content).toContain('节奏加速');
   });
+
+  it('通过历史片段召回当前未直接提名的实体', async () => {
+    const p = createProject({ title: '书' }, db);
+    const v = createVolume(p.id, { title: '卷一' }, db);
+    createChapter(v.id, { title: '第二章', outline: '', content: '林砚带着宗门令牌进入禁地。' }, db);
+    const current = createChapter(v.id, { title: '第三章', outline: '', content: '' }, db);
+    createEntity({ projectId: p.id, type: 'character', name: '林砚', description: '刀客', fields: {} }, db);
+    const ctx = await assembleContext({ projectId: p.id, chapterId: current.id, before: '宗门令牌为何会出现在这里', after: '' }, db);
+    expect(ctx.entities.map((e) => e.name)).toContain('林砚');
+  });
 });
