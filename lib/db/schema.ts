@@ -145,4 +145,12 @@ export const MIGRATIONS: string[] = [
     updatedAt TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS chapter_embeddings (
+    chapterId TEXT PRIMARY KEY REFERENCES chapter(id) ON DELETE CASCADE,
+    vector TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    updatedAt TEXT NOT NULL
+  );
+  `,
 ];
