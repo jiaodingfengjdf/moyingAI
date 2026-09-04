@@ -25,25 +25,41 @@ export async function POST(req: NextRequest) {
     const stream = await streamChat({ messages: buildRewriteMessages(ctx, mode, selected) });
 
     const encoder = new TextEncoder();
+    let closed = false;
+    let reader: ReadableStreamDefaultReader<string> | null = null;
     const out = new ReadableStream<Uint8Array>({
       async start(ctrl) {
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'meta', requestId: request.id })}\n\n`));
-        const reader = stream.getReader();
+        const send = (event: unknown) => {
+          if (!closed) ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        };
+        const closeOnce = () => {
+          if (!closed) {
+            closed = true;
+            ctrl.close();
+          }
+        };
+        send({ type: 'meta', requestId: request.id });
+        reader = stream.getReader();
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', branch: 0, text: value })}\n\n`));
+            send({ type: 'delta', branch: 0, text: value });
           }
         } catch (err) {
-          ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', branch: 0, message: String((err as Error).message) })}\n\n`));
+          send({ type: 'error', branch: 0, message: String((err as Error).message) });
         } finally {
-          ctrl.enqueue(encoder.encode('data: {"type":"done","branch":0}\n\n'));
-          ctrl.close();
+          send({ type: 'done', branch: 0 });
+          closeOnce();
         }
       },
       cancel() {
-        void stream.cancel();
+        closed = true;
+        try {
+          void reader?.cancel();
+        } catch {
+          // 读取器可能已释放，忽略
+        }
       },
     });
     return new Response(out, {

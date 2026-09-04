@@ -22,30 +22,48 @@ export async function POST(req: NextRequest) {
 
     const encoder = new TextEncoder();
     let finished = 0;
+    let closed = false;
+    let readers: Array<ReadableStreamDefaultReader<string>> = [];
     const stream = new ReadableStream<Uint8Array>({
       async start(ctrl) {
-        ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'meta', requestId: request.id })}\n\n`));
-        streams.forEach((s, branch) => {
+        readers = streams.map((s) => s.getReader());
+        const send = (event: unknown) => {
+          if (!closed) ctrl.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        };
+        const closeOnce = () => {
+          if (!closed) {
+            closed = true;
+            ctrl.close();
+          }
+        };
+        send({ type: 'meta', requestId: request.id });
+        readers.forEach((reader, branch) => {
           void (async () => {
-            const reader = s.getReader();
             try {
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', branch, text: value })}\n\n`));
+                send({ type: 'delta', branch, text: value });
               }
             } catch (err) {
-              ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', branch, message: String((err as Error).message) })}\n\n`));
+              send({ type: 'error', branch, message: String((err as Error).message) });
             } finally {
               finished += 1;
-              ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', branch })}\n\n`));
-              if (finished === streams.length) ctrl.close();
+              send({ type: 'done', branch });
+              if (finished === readers.length) closeOnce();
             }
           })();
         });
       },
       cancel() {
-        streams.forEach((s) => void s.cancel());
+        closed = true;
+        for (const reader of readers) {
+          try {
+            void reader.cancel();
+          } catch {
+            // 读取器可能已释放，忽略
+          }
+        }
       },
     });
     return new Response(stream, {
