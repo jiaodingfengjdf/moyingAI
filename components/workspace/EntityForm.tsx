@@ -120,6 +120,24 @@ export default function EntityForm({ projectId, entity, onClose, onSaved }: Prop
 
   const timeline = timelineData?.timeline ?? [];
 
+  function personaSetter(key: string) {
+    return (value: string) => {
+      setFieldRows((rows) => {
+        const idx = rows.findIndex((r) => r.key === key);
+        if (idx < 0) return [...rows, { key, value }];
+        return rows.map((r, j) => (j === idx ? { ...r, value } : r));
+      });
+    };
+  }
+
+  function personaValue(key: string): string {
+    return fieldRows.find((r) => r.key === key)?.value ?? '';
+  }
+
+  const personaKeys: Array<[string, string]> = type === 'character'
+    ? [['want', '表层欲望 Want'], ['need', '底层需求/恐惧 Need'], ['flaw', '缺陷 Flaw'], ['moralBoundary', '道德底线'], ['speechTic', '台词指纹·口癖'], ['speechStyle', '台词指纹·用词风格'], ['speechPace', '台词指纹·语速节奏'], ['speechRestraint', '台词指纹·情绪隐忍度']]
+    : [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
       <div className="flex max-h-full w-full max-w-lg flex-col overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
@@ -169,6 +187,33 @@ export default function EntityForm({ projectId, entity, onClose, onSaved }: Prop
             校验规则（每行一条，如：不可复活）
             <textarea value={rulesText} onChange={(e) => setRulesText(e.target.value)} rows={2} className="rounded border border-gray-300 px-2 py-1" />
           </label>
+
+          {personaKeys.length > 0 && (
+            <div className="rounded border border-gray-100 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-600">人物驱动与台词指纹</span>
+                <button
+                  onClick={() => setFieldRows((rows) => rows.filter((r) => !personaKeys.some(([k]) => k === r.key)))}
+                  className="text-xs text-gray-400"
+                  title="清空人物建模字段"
+                >
+                  清空
+                </button>
+              </div>
+              <div className="mt-1 grid grid-cols-2 gap-1.5">
+                {personaKeys.map(([key, label]) => (
+                  <label key={key} className="flex flex-col gap-0.5 text-xs text-gray-500">
+                    {label}
+                    <input
+                      value={personaValue(key)}
+                      onChange={(e) => personaSetter(key)(e.target.value)}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {entity && (
             <div className="border-t border-gray-100 pt-3">

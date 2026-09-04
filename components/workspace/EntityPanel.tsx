@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import EntityForm from './EntityForm';
 import RelationshipForm from './RelationshipForm';
+import DialogueStudio from './DialogueStudio';
 import type { Entity, EntityType, Relationship } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -21,6 +22,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
   const [editing, setEditing] = useState<Entity | 'new' | null>(null);
   const [relationForm, setRelationForm] = useState<Relationship | 'new' | null>(null);
   const [confirmingRelation, setConfirmingRelation] = useState<string | null>(null);
+  const [studioOpen, setStudioOpen] = useState(false);
   const entities = data?.entities ?? [];
   const relationships = relationData?.relationships ?? [];
   const groups = Object.keys(TYPE_LABELS) as EntityType[];
@@ -29,7 +31,10 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
     <div className="mt-6 border-t border-gray-100 pt-3">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium text-gray-500">实体档案馆</h3>
-        <button onClick={() => setEditing('new')} className="text-blue-600">+ 实体</button>
+        <span className="flex gap-2">
+          <button onClick={() => setStudioOpen(true)} className="text-blue-600">演练</button>
+          <button onClick={() => setEditing('new')} className="text-blue-600">+ 实体</button>
+        </span>
       </div>
       {groups.map((type) => {
         const list = entities.filter((e) => e.type === type);
@@ -96,6 +101,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
           }}
         />
       )}
+      {studioOpen && <DialogueStudio projectId={projectId} onClose={() => setStudioOpen(false)} />}
     </div>
   );
 }
