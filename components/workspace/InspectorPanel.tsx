@@ -42,6 +42,8 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [aiSkipped, setAiSkipped] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [autoCheckOn, setAutoCheckOn] = useState(true);
+  const [poisonIssues, setPoisonIssues] = useState<ConsistencyIssue[]>([]);
+  const [poisonChecking, setPoisonChecking] = useState(false);
   const [emotionBusy, setEmotionBusy] = useState(false);
   const [emotionMsg, setEmotionMsg] = useState('');
   const [exportMsg, setExportMsg] = useState('');
@@ -137,6 +139,22 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
       setChecking(false);
     }
   }, [chapter]);
+
+  async function runPoisonCheck() {
+    if (!chapter) return;
+    setPoisonChecking(true);
+    try {
+      const res = await fetch('/api/ai/poison-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setPoisonIssues((json.issues as ConsistencyIssue[]) ?? []);
+    } finally {
+      setPoisonChecking(false);
+    }
+  }
 
   useEffect(() => {
     void fetch('/api/settings')
@@ -340,6 +358,29 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
                 <span className="text-gray-400">{issue.source === 'rule' ? '规则' : 'AI'}</span>
               </div>
               {issue.text && <p className="mt-0.5 text-red-600">{issue.text}</p>}
+              {issue.reason && <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>}
+              {issue.suggestion && <p className="mt-0.5 text-gray-600">建议：{issue.suggestion}</p>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 p-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-gray-500">毒点警报</h3>
+          <button onClick={() => void runPoisonCheck()} disabled={!chapter || poisonChecking} className="text-xs text-purple-600 disabled:text-gray-300">
+            {poisonChecking ? '审查中…' : '毒点审查'}
+          </button>
+        </div>
+        {!poisonChecking && poisonIssues.length === 0 && <p className="mt-1 text-xs text-gray-400">未发现毒点（手动审查）</p>}
+        <ul className="mt-1 space-y-2">
+          {poisonIssues.map((issue, i) => (
+            <li key={i} className="rounded border border-purple-100 bg-purple-50 p-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-purple-700">{issue.type}</span>
+                <span className="text-gray-400">毒点</span>
+              </div>
+              {issue.text && <p className="mt-0.5 text-purple-800">{issue.text}</p>}
               {issue.reason && <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>}
               {issue.suggestion && <p className="mt-0.5 text-gray-600">建议：{issue.suggestion}</p>}
             </li>

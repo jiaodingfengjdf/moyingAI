@@ -74,7 +74,7 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved, bridge }: 
     return () => {
       bridge.current = null;
     };
-  }, [bridge, outline, autosave.state, autosave.flush, autosave.discard]);
+  }, [bridge, outline, chapter.outline, autosave.state, autosave.flush, autosave.discard]);
 
   function openNew() {
     setDraft(EMPTY_DRAFT);
