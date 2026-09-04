@@ -20,11 +20,15 @@ export const GHOST_BRANCHES: GhostBranchSpec[] = [
   { id: 'environment', label: '环境渲染/变故突生', instruction: '续写 100~300 字：用环境、氛围或一个突发变数推进场景，制造张力。' },
 ];
 
-export type RewriteMode = 'expand' | 'senses' | 'pace' | 'mood';
+export type RewriteMode = 'expand' | 'senses' | 'pace' | 'mood' | 'fix';
 
 export const REWRITE_MODES: Record<RewriteMode, { label: string; instruction: string }> = {
   expand: { label: '扩写', instruction: '在不改变情节与设定的前提下扩写给定片段，篇幅扩充约 1.5~2 倍，补充动作细节、对话反应与场景信息。' },
   senses: { label: '五感强化', instruction: '重写给定片段，强化视觉光影、声音质感、气味、触觉与痛觉等五感描写，保持情节不变。' },
   pace: { label: '节奏加速', instruction: '重写给定片段，剔除冗余修饰、压缩长句、强化动作动词，使节奏更快更利落。' },
   mood: { label: '意境沉浸', instruction: '重写给定片段，增加隐喻与场景氛围烘托，营造更浓的意境与情绪。' },
+  fix: {
+    label: '一致性修复',
+    instruction: '重写给定片段，修复其中与世界观设定、人物状态或前文事实不一致之处；保持情节走向、叙述视角与文风，不引入未经设定的新内容。',
+  },
 };

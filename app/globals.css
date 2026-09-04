@@ -34,3 +34,10 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+.ProseMirror .consistency-hit {
+  background: rgba(239, 68, 68, 0.14);
+  border-bottom: 1.5px solid rgba(239, 68, 68, 0.85);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.08);
+}

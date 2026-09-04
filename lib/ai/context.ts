@@ -82,11 +82,12 @@ export function buildGhostwriteMessages(ctx: AssembledContext, branch: GhostBran
   ];
 }
 
-export function buildRewriteMessages(ctx: AssembledContext, mode: RewriteMode, selected: string): ChatMessage[] {
+export function buildRewriteMessages(ctx: AssembledContext, mode: RewriteMode, selected: string, hint?: string): ChatMessage[] {
   const spec = REWRITE_MODES[mode];
+  const hintBlock = hint ? `\n\n冲突信息：\n${hint}` : '';
   return [
     { role: 'system', content: `${SYSTEM_PROMPT}\n\n${renderContextBlock(ctx)}` },
-    { role: 'user', content: `【任务：${spec.label}】${spec.instruction}\n\n待处理片段：\n\n${selected.slice(0, 2000)}` },
+    { role: 'user', content: `【任务：${spec.label}】${spec.instruction}\n\n待处理片段：\n\n${selected.slice(0, 2000)}${hintBlock}` },
   ];
 }
 

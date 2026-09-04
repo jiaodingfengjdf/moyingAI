@@ -14,7 +14,7 @@ import ShortcutsModal from './ShortcutsModal';
 import type { OutlineBridge } from './ChapterOutlineView';
 import { useAutosave } from '@/lib/useAutosave';
 import { countWords } from '@/lib/wordCount';
-import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
+import type { ChapterWithVolume, ConsistencyIssue, Project, Volume } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -23,6 +23,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const { data: projectData } = useSWR<{ project: Project }>(`/api/projects/${projectId}`, fetcher);
   const { data: volumesData, mutate: mutateVolumes } = useSWR<{ volumes: Volume[] }>(`/api/projects/${projectId}/volumes`, fetcher);
   const { data: chaptersData, mutate: mutateChapters } = useSWR<{ chapters: ChapterWithVolume[] }>(`/api/projects/${projectId}/chapters`, fetcher);
+  const { data: settingsData, mutate: mutateSettings } = useSWR<{ autoCheck?: boolean; blockMode?: string }>('/api/settings', fetcher);
 
   const [currentChapterId, setCurrentChapterId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -36,6 +37,9 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [view, setView] = useState<'write' | 'outline'>('write');
   const [editorMode, setEditorMode] = useState<'visual' | 'source'>('visual');
   const [mdText, setMdText] = useState('');
+  const [activeIssues, setActiveIssues] = useState<ConsistencyIssue[]>([]);
+  const [blockedIssues, setBlockedIssues] = useState<ConsistencyIssue[] | null>(null);
+  const [confirmSourceIgnore, setConfirmSourceIgnore] = useState(false);
   const contentRef = useRef('');
   const lastSavedRef = useRef('');
   const chapterIdRef = useRef<string | null>(null);
@@ -46,6 +50,16 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const chapters = useMemo(() => chaptersData?.chapters ?? [], [chaptersData]);
   const current = chapters.find((c) => c.id === currentChapterId) ?? null;
   const loading = !volumesData || !chaptersData;
+  const autoCheck = settingsData ? (settingsData.autoCheck ?? true) : null;
+  const blockMode = settingsData ? (settingsData.blockMode === 'hint' ? 'hint' : 'block') : null;
+
+  const handleIssuesChange = useCallback(
+    (issues: ConsistencyIssue[]) => {
+      setActiveIssues(issues);
+      setBlockedIssues(blockMode === 'block' && issues.length > 0 ? issues : null);
+    },
+    [blockMode],
+  );
 
   const save = useCallback(
     async (content: string) => {
@@ -118,6 +132,8 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     async (id: string) => {
       await autosave.flush();
       setCurrentChapterId(id);
+      setActiveIssues([]);
+      setBlockedIssues(null);
       const next = (chaptersData?.chapters ?? []).find((c) => c.id === id);
       if (next) {
         lastSavedRef.current = next.content;
@@ -200,6 +216,8 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     baseContentRef.current = restored?.content ?? '';
     setMdText(restored?.content ?? '');
     setWordCount(countWords(restored?.content ?? ''));
+    setActiveIssues([]);
+    setBlockedIssues(null);
     setRefreshToken((t) => t + 1);
   }
 
@@ -276,10 +294,13 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
                   title={current.title}
                   initialContent={editorMode === 'visual' ? mdText : current.content}
                   onChange={handleContentChange}
+                  highlightIssues={activeIssues}
+                  blockedIssues={blockedIssues}
+                  onBlockIgnored={() => setBlockedIssues(null)}
                 />
               </div>
               {view === 'write' && editorMode === 'source' && (
-                <MarkdownSourceView value={mdText} onChange={handleContentChange} />
+                <MarkdownSourceView value={mdText} onChange={handleContentChange} issues={activeIssues} />
               )}
               {view === 'outline' && (
                 <ChapterOutlineView
@@ -301,11 +322,13 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           liveText={mdText}
           saveState={autosave.state}
           wordCount={wordCount}
+          autoCheck={autoCheck}
+          onIssuesChange={handleIssuesChange}
           onRestored={() => void handleRestored()}
           onForked={(id) => void handleForked(id)}
         />
       </div>
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onSaved={() => void mutateSettings()} />}
       {showCompliance && <ComplianceModal projectId={projectId} onClose={() => setShowCompliance(false)} />}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {showExit && (
@@ -320,6 +343,41 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
               <button onClick={exitDiscard} disabled={exiting} className="rounded border border-gray-300 px-3 py-1.5 text-gray-600">不保存退出</button>
               <button onClick={() => void exitAndSave()} disabled={exiting} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">
                 {exiting ? '保存中…' : '保存并退出'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {blockedIssues && blockedIssues.length > 0 && view === 'write' && editorMode === 'source' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-red-700">一致性熔断（源码模式）</h3>
+              <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-600">{blockedIssues.length} 处冲突</span>
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              正文中检测到一致性冲突，已在右侧列出并暂停输入。切回可视化模式可逐条标红并交给 AI 修复。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  if (confirmSourceIgnore) {
+                    setBlockedIssues(null);
+                    setActiveIssues([]);
+                    setConfirmSourceIgnore(false);
+                  } else {
+                    setConfirmSourceIgnore(true);
+                  }
+                }}
+                className="rounded border border-gray-300 px-3 py-1.5 text-gray-600"
+              >
+                {confirmSourceIgnore ? '再次点击，确认忽略' : '忽略并继续'}
+              </button>
+              <button
+                onClick={() => setEditorMode('visual')}
+                className="rounded bg-blue-600 px-3 py-1.5 text-white"
+              >
+                切到可视化模式处理
               </button>
             </div>
           </div>

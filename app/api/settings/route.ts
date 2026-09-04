@@ -12,6 +12,7 @@ function snapshot() {
     hasApiKey: Boolean(getSetting('ai.apiKey') || envApiKey()),
     embedModel: getSetting('ai.embedModel') || '',
     autoCheck: getSetting('ai.autoCheck') !== '0',
+    blockMode: getSetting('ai.blockMode') || 'block',
   };
 }
 
@@ -35,6 +36,9 @@ export async function PUT(req: NextRequest) {
   }
   if (typeof body?.autoCheck === 'boolean') {
     setSetting('ai.autoCheck', body.autoCheck ? '1' : '0');
+  }
+  if (body?.blockMode === 'hint' || body?.blockMode === 'block') {
+    setSetting('ai.blockMode', body.blockMode);
   }
   return NextResponse.json(snapshot());
 }

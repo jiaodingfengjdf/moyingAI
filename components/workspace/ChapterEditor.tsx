@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Editor, JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -9,6 +12,7 @@ import { parseDoc, serializeDoc, type Doc } from '@/lib/markdown';
 import { GHOST_BRANCHES, REWRITE_MODES, type RewriteMode } from '@/lib/ai/prompts';
 import { STYLE_TARGETS, type StyleTarget } from '@/lib/ai/style';
 import type { BlockIdea } from '@/lib/ai/blockBreaker';
+import type { ConsistencyIssue } from '@/lib/types';
 import { useAIStream } from '@/lib/useAIStream';
 import AIOverlay from './AIOverlay';
 
@@ -17,6 +21,9 @@ interface Props {
   title: string;
   initialContent: string;
   onChange: (md: string) => void;
+  highlightIssues?: ConsistencyIssue[];
+  blockedIssues?: ConsistencyIssue[] | null;
+  onBlockIgnored?: () => void;
 }
 
 const MENU_ACTIONS: { key: string; label: string; mode: RewriteMode | null }[] = [
@@ -28,9 +35,49 @@ const MENU_ACTIONS: { key: string; label: string; mode: RewriteMode | null }[] =
   { key: 'check', label: '诊断', mode: null },
 ];
 
-export default function ChapterEditor({ chapterId, title, initialContent, onChange }: Props) {
+const ISSUE_MARKS_KEY = new PluginKey('consistencyIssueMarks');
+
+const ConsistencyIssueMarks = Extension.create({
+  name: 'consistencyIssueMarks',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: ISSUE_MARKS_KEY,
+        state: {
+          init: () => DecorationSet.empty,
+          apply(tr, value) {
+            const next = tr.getMeta(ISSUE_MARKS_KEY);
+            if (next) return next as DecorationSet;
+            return value.map(tr.mapping, tr.doc);
+          },
+        },
+        props: {
+          decorations: (state) => (ISSUE_MARKS_KEY.getState(state) as DecorationSet | undefined) ?? DecorationSet.empty,
+        },
+      }),
+    ];
+  },
+});
+
+interface IssueRange {
+  issueIndex: number;
+  from: number;
+  to: number;
+}
+
+export default function ChapterEditor({
+  chapterId,
+  title,
+  initialContent,
+  onChange,
+  highlightIssues = [],
+  blockedIssues = null,
+  onBlockIgnored,
+}: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
+  const [blockNote, setBlockNote] = useState('');
+  const [confirmIgnore, setConfirmIgnore] = useState(false);
   const [styleMenu, setStyleMenu] = useState<{ x: number; y: number } | null>(null);
   const [wheel, setWheel] = useState<{ x: number; y: number; ideas: BlockIdea[]; loading: boolean; error: string } | null>(null);
   const replaceRangeRef = useRef<{ from: number; to: number } | null>(null);
@@ -43,6 +90,9 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
   const adoptRef = useRef<(index: number) => void>(() => {});
   const cancelRef = useRef<() => void>(() => {});
   const escRef = useRef<() => boolean>(() => false);
+  const issueRangesRef = useRef<IssueRange[]>([]);
+  const blockedRef = useRef(blockedIssues);
+  blockedRef.current = blockedIssues;
   cancelRef.current = ai.cancel;
 
   useEffect(() => () => cancelRef.current(), []);
@@ -53,6 +103,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
       extensions: [
         StarterKit,
         Placeholder.configure({ placeholder: '开始写作……（Alt+/ 触发续写，Tab 采纳第一条）' }),
+        ConsistencyIssueMarks,
       ],
       content: parseDoc(initialContent) as unknown as JSONContent,
       editorProps: {
@@ -95,6 +146,59 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
     },
     [],
   );
+
+  const issueSignature = JSON.stringify(highlightIssues.map((i) => [i.type, i.text, i.reason]));
+
+  useEffect(() => {
+    if (!editor) return;
+    const ranges: IssueRange[] = [];
+    highlightIssues.forEach((issue, issueIndex) => {
+      const query = issue.text.trim();
+      if (!query) return;
+      editor.state.doc.descendants((node, pos) => {
+        if (!node.isText || !node.text) return;
+        const text = node.text;
+        let from = text.indexOf(query);
+        while (from >= 0) {
+          ranges.push({ issueIndex, from: pos + from, to: pos + from + query.length });
+          const next = text.indexOf(query, from + query.length);
+          if (next < 0) break;
+          from = next;
+        }
+      });
+    });
+    issueRangesRef.current = ranges
+      .sort((a, b) => a.from - b.from || a.to - b.to)
+      .filter((r, i, all) => i === 0 || r.from >= all[i - 1].to);
+    const decorations = issueRangesRef.current.map((r) => Decoration.inline(r.from, r.to, { class: 'consistency-hit' }));
+    editor.view.dispatch(editor.state.tr.setMeta(ISSUE_MARKS_KEY, DecorationSet.create(editor.state.doc, decorations)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, issueSignature]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!blockedIssues || blockedIssues.length === 0);
+  }, [editor, blockedIssues]);
+
+  useEffect(() => {
+    setConfirmIgnore(false);
+    setBlockNote('');
+  }, [blockedIssues]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ issueIndex?: number } | null>).detail;
+      const issueIndex = detail?.issueIndex;
+      if (typeof issueIndex !== 'number' || !editor) return;
+      const range = issueRangesRef.current.find((r) => r.issueIndex === issueIndex);
+      if (!range) return;
+      editor.commands.focus();
+      editor.commands.setTextSelection({ from: range.from, to: range.to });
+      editor.commands.scrollIntoView();
+    };
+    window.addEventListener('consistency:locate', handler);
+    return () => window.removeEventListener('consistency:locate', handler);
+  }, [editor]);
 
   function cursorContext(e: Editor) {
     const from = e.state.selection.from;
@@ -205,6 +309,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
       void fetch(`/api/ai-requests/${aiRef.current.state.requestId}/accept`, { method: 'POST' })
         .then(() => window.dispatchEvent(new Event('ai:adopted')));
     }
+    if (blockedRef.current) onBlockIgnored?.();
     closeOverlay();
   }
 
@@ -219,7 +324,46 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
       void fetch(`/api/ai-requests/${aiRef.current.state.requestId}/accept`, { method: 'POST' })
         .then(() => window.dispatchEvent(new Event('ai:adopted')));
     }
+    if (blockedRef.current) onBlockIgnored?.();
     closeOverlay();
+  }
+
+  function triggerFixIssue(issueIndex: number) {
+    if (!editor || !blockedIssues) return;
+    const issue = blockedIssues[issueIndex];
+    if (!issue) return;
+    let range = issueRangesRef.current.find((r) => r.issueIndex === issueIndex);
+    if (!range && issue.text.trim()) {
+      const query = issue.text.trim();
+      let fallback: IssueRange | undefined;
+      editor.state.doc.descendants((node, pos) => {
+        if (fallback || !node.isText || !node.text) return;
+        const idx = node.text.indexOf(query);
+        if (idx >= 0) fallback = { issueIndex, from: pos + idx, to: pos + idx + query.length };
+      });
+      range = fallback;
+    }
+    if (!range) {
+      setBlockNote(`正文中未定位到「${issue.text}」，请改为手动选中冲突片段后使用润色里的「一致性修复」。`);
+      return;
+    }
+    const selected = editor.state.doc.textBetween(range.from, range.to, '\n', ' ');
+    if (!selected.trim()) {
+      setBlockNote('选中内容为空，无法修复。');
+      return;
+    }
+    const before = editor.state.doc.textBetween(0, range.from, '\n', ' ').slice(-2000);
+    const after = editor.state.doc.textBetween(range.to, editor.state.doc.content.size, '\n', ' ').slice(0, 300);
+    replaceRangeRef.current = { from: range.from, to: range.to };
+    const rect = editor.view.coordsAtPos(range.to);
+    setOverlayPos({ x: rect.left, y: rect.bottom + 8 });
+    const hint = [issue.reason, issue.suggestion].filter(Boolean).join('；');
+    void ai.run(
+      '/api/ai/rewrite',
+      { chapterId, mode: 'fix', hint, selected, before, after },
+      'rewrite',
+      [REWRITE_MODES.fix.label],
+    );
   }
 
   function closeOverlay() {
@@ -377,6 +521,55 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {blockedIssues && blockedIssues.length > 0 && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-6">
+          <div className="flex max-h-[82vh] w-full max-w-xl flex-col rounded-lg bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-red-700">一致性熔断</h3>
+              <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-600">{blockedIssues.length} 处冲突</span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              写作已暂停，正文中的冲突位置已标红。可逐条交给 AI 修复；也可确认后忽略本次熔断继续写作。
+            </p>
+            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {blockedIssues.map((issue, i) => (
+                <div key={`${issue.type}-${i}`} className="rounded border border-red-100 bg-red-50/60 p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-red-700">{issue.type}</span>
+                    <span className="text-gray-400">{issue.source === 'rule' ? '规则' : 'AI'}</span>
+                  </div>
+                  {issue.text && <p className="mt-1 text-red-800">{issue.text}</p>}
+                  {issue.reason && <p className="mt-1 text-gray-600">原因：{issue.reason}</p>}
+                  {issue.suggestion && <p className="mt-1 text-gray-600">建议：{issue.suggestion}</p>}
+                  <button
+                    onClick={() => triggerFixIssue(i)}
+                    disabled={ai.state.loading}
+                    className="mt-1.5 rounded border border-blue-200 px-2 py-0.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    {ai.state.loading ? '生成中…' : 'AI 修复此冲突'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {blockNote && <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">{blockNote}</p>}
+            <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+              <p className="text-[10px] text-gray-400">AI 修复需在设置中配置模型密钥；未定位到原文的冲突请手动选中后处理。</p>
+              <button
+                onClick={() => {
+                  if (confirmIgnore) {
+                    onBlockIgnored?.();
+                  } else {
+                    setConfirmIgnore(true);
+                  }
+                }}
+                className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                {confirmIgnore ? '再次点击，确认忽略并继续' : '忽略全部并继续'}
+              </button>
+            </div>
           </div>
         </div>
       )}

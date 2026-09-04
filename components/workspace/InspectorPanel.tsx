@@ -16,11 +16,22 @@ interface Props {
   liveText?: string;
   saveState: string;
   wordCount: number;
+  autoCheck: boolean | null;
+  onIssuesChange: (issues: ConsistencyIssue[]) => void;
   onRestored: () => void;
   onForked: (chapterId: string) => void;
 }
 
-export default function InspectorPanel({ chapter, liveText = '', saveState, wordCount, onRestored, onForked }: Props) {
+export default function InspectorPanel({
+  chapter,
+  liveText = '',
+  saveState,
+  wordCount,
+  autoCheck,
+  onIssuesChange,
+  onRestored,
+  onForked,
+}: Props) {
   const { data, isLoading, mutate } = useSWR<{ snapshots: ChapterSnapshot[] }>(
     chapter ? `/api/chapters/${chapter.id}/snapshots` : null,
     fetcher,
@@ -45,7 +56,6 @@ export default function InspectorPanel({ chapter, liveText = '', saveState, word
   const [issues, setIssues] = useState<ConsistencyIssue[]>([]);
   const [aiSkipped, setAiSkipped] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [autoCheckOn, setAutoCheckOn] = useState(true);
   const [poisonIssues, setPoisonIssues] = useState<ConsistencyIssue[]>([]);
   const [poisonChecking, setPoisonChecking] = useState(false);
   const [emotionBusy, setEmotionBusy] = useState(false);
@@ -138,12 +148,14 @@ export default function InspectorPanel({ chapter, liveText = '', saveState, word
         body: JSON.stringify({ content }),
       });
       const json = await res.json().catch(() => ({}));
-      setIssues((json.issues as ConsistencyIssue[]) ?? []);
+      const next = (json.issues as ConsistencyIssue[]) ?? [];
+      setIssues(next);
+      onIssuesChange(next);
       setAiSkipped(json.aiSkipped ?? null);
     } finally {
       setChecking(false);
     }
-  }, [chapter]);
+  }, [chapter, onIssuesChange]);
 
   async function runPoisonCheck() {
     if (!chapter) return;
@@ -162,20 +174,13 @@ export default function InspectorPanel({ chapter, liveText = '', saveState, word
   }
 
   useEffect(() => {
-    void fetch('/api/settings')
-      .then((r) => r.json())
-      .then((d: { autoCheck?: boolean }) => setAutoCheckOn(d.autoCheck ?? true))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!autoCheckOn) return;
+    if (autoCheck == null || !autoCheck) return;
     if (saveState !== 'saved' || !chapter) return;
     if (chapter.content === lastCheckedHash.current) return;
     lastCheckedHash.current = chapter.content;
     const timer = setTimeout(() => void runCheck(chapter.content), 3000);
     return () => clearTimeout(timer);
-  }, [saveState, chapter, runCheck, autoCheckOn]);
+  }, [saveState, chapter, runCheck, autoCheck]);
 
   async function createSnapshot() {
     if (!chapter) return;
@@ -365,7 +370,10 @@ export default function InspectorPanel({ chapter, liveText = '', saveState, word
             <li key={i} className="rounded border border-red-100 bg-red-50 p-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-red-700">{issue.type}</span>
-                <span className="text-gray-400">{issue.source === 'rule' ? '规则' : 'AI'}</span>
+                <span className="flex items-center gap-2">
+                  <button onClick={() => locateIssue(i)} className="text-blue-600 hover:underline" title="在正文中标出并选中该冲突位置">正文定位</button>
+                  <span className="text-gray-400">{issue.source === 'rule' ? '规则' : 'AI'}</span>
+                </span>
               </div>
               {issue.text && <p className="mt-0.5 text-red-600">{issue.text}</p>}
               {issue.reason && <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>}
@@ -427,6 +435,10 @@ export default function InspectorPanel({ chapter, liveText = '', saveState, word
       )}
     </aside>
   );
+}
+
+function locateIssue(issueIndex: number) {
+  window.dispatchEvent(new CustomEvent('consistency:locate', { detail: { issueIndex } }));
 }
 
 function saveLabel(state: string): string {

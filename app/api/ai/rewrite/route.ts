@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const selected = typeof body?.selected === 'string' ? body.selected : '';
   const before = typeof body?.before === 'string' ? body.before : '';
   const after = typeof body?.after === 'string' ? body.after : '';
+  const hint = typeof body?.hint === 'string' ? body.hint : '';
   if (!chapterId) return NextResponse.json({ error: 'chapterId 必填' }, { status: 400 });
   if (!(mode in REWRITE_MODES)) return NextResponse.json({ error: '不支持的润色模式' }, { status: 400 });
   if (!selected.trim()) return NextResponse.json({ error: '请先选中要处理的文本' }, { status: 400 });
@@ -21,8 +22,9 @@ export async function POST(req: NextRequest) {
   try {
     const config = await getAIConfig();
     const ctx = await assembleContext({ projectId: chapter.projectId, chapterId, before: before || selected, after });
-    const request = createAIRequest({ projectId: chapter.projectId, chapterId, kind: 'rewrite', model: config.model, prompt: selected.slice(0, 500) });
-    const stream = await streamChat({ messages: buildRewriteMessages(ctx, mode, selected) });
+    const prompt = [selected.slice(0, 350), hint.slice(0, 150)].filter(Boolean).join('\n');
+    const request = createAIRequest({ projectId: chapter.projectId, chapterId, kind: 'rewrite', model: config.model, prompt });
+    const stream = await streamChat({ messages: buildRewriteMessages(ctx, mode, selected, hint) });
 
     const encoder = new TextEncoder();
     let closed = false;

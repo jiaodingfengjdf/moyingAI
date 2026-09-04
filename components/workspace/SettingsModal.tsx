@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export default function SettingsModal({ onClose }: { onClose: () => void }) {
+export default function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -11,16 +11,18 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [autoCheck, setAutoCheck] = useState(true);
+  const [blockMode, setBlockMode] = useState<'hint' | 'block'>('block');
 
   useEffect(() => {
     void fetch('/api/settings')
       .then((r) => r.json())
-      .then((d: { baseUrl: string; model: string; hasApiKey: boolean; embedModel?: string; autoCheck?: boolean }) => {
+      .then((d: { baseUrl: string; model: string; hasApiKey: boolean; embedModel?: string; autoCheck?: boolean; blockMode?: string }) => {
         setBaseUrl(d.baseUrl);
         setModel(d.model);
         setHasKey(d.hasApiKey);
         setEmbedModel(d.embedModel ?? '');
         setAutoCheck(d.autoCheck ?? true);
+        setBlockMode(d.blockMode === 'hint' ? 'hint' : 'block');
       });
   }, []);
 
@@ -30,13 +32,14 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baseUrl, model, apiKey, embedModel, autoCheck }),
+      body: JSON.stringify({ baseUrl, model, apiKey, embedModel, autoCheck, blockMode }),
     });
     setBusy(false);
     if (res.ok) {
       setHasKey(true);
       setApiKey('');
       setMessage('已保存');
+      onSaved?.();
     } else {
       setMessage('保存失败');
     }
@@ -66,6 +69,23 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked={autoCheck} onChange={(e) => setAutoCheck(e.target.checked)} />
             保存后自动一致性检查
           </label>
+          <fieldset className="rounded border border-gray-200 p-2">
+            <legend className="px-1 text-xs text-gray-500">一致性熔断</legend>
+            <label className="flex items-start gap-2">
+              <input type="radio" checked={blockMode === 'block'} onChange={() => setBlockMode('block')} className="mt-0.5" />
+              <span>
+                标红并暂停输入
+                <span className="block text-xs text-gray-400">检测到冲突时正文标红、暂停写作，可逐条交给 AI 修复</span>
+              </span>
+            </label>
+            <label className="mt-1 flex items-start gap-2">
+              <input type="radio" checked={blockMode === 'hint'} onChange={() => setBlockMode('hint')} className="mt-0.5" />
+              <span>
+                仅提示（不暂停）
+                <span className="block text-xs text-gray-400">右栏与正文标红提示，由作者自行处理</span>
+              </span>
+            </label>
+          </fieldset>
           <label className="flex flex-col gap-1">
             API Key
             <input
