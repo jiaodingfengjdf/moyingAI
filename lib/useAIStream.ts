@@ -8,7 +8,7 @@ export interface BranchState {
 }
 
 export interface AIStreamState {
-  kind: 'ghostwrite' | 'rewrite' | 'style' | null;
+  kind: 'ghostwrite' | 'rewrite' | 'style' | 'blockbreak' | null;
   requestId: string | null;
   branches: BranchState[];
   loading: boolean;
@@ -20,7 +20,7 @@ const IDLE: AIStreamState = { kind: null, requestId: null, branches: [], loading
 export function useAIStream() {
   const [state, setState] = useState<AIStreamState>(IDLE);
   const controllerRef = useRef<AbortController | null>(null);
-  const lastRef = useRef<{ url: string; body: unknown; kind: 'ghostwrite' | 'rewrite' | 'style'; labels: string[] } | null>(null);
+  const lastRef = useRef<{ url: string; body: unknown; kind: 'ghostwrite' | 'rewrite' | 'style' | 'blockbreak'; labels: string[] } | null>(null);
 
   const cancel = useCallback(() => {
     controllerRef.current?.abort();
@@ -34,7 +34,7 @@ export function useAIStream() {
     setState(IDLE);
   }, []);
 
-  const run = useCallback(async (url: string, body: unknown, kind: 'ghostwrite' | 'rewrite' | 'style', labels: string[]) => {
+  const run = useCallback(async (url: string, body: unknown, kind: 'ghostwrite' | 'rewrite' | 'style' | 'blockbreak', labels: string[]) => {
     lastRef.current = { url, body, kind, labels };
     controllerRef.current?.abort();
     const controller = new AbortController();

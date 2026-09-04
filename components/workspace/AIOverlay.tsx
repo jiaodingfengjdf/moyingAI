@@ -105,5 +105,6 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onMerg
 function overlayTitle(kind: string | null): string {
   if (kind === 'rewrite') return 'AI 润色建议';
   if (kind === 'style') return '文风迁移';
+  if (kind === 'blockbreak') return '破局续写';
   return '三条续写方向';
 }

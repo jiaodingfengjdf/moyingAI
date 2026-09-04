@@ -8,6 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { parseDoc, serializeDoc, type Doc } from '@/lib/markdown';
 import { GHOST_BRANCHES, REWRITE_MODES, type RewriteMode } from '@/lib/ai/prompts';
 import { STYLE_TARGETS, type StyleTarget } from '@/lib/ai/style';
+import type { BlockIdea } from '@/lib/ai/blockBreaker';
 import { useAIStream } from '@/lib/useAIStream';
 import AIOverlay from './AIOverlay';
 
@@ -31,6 +32,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
   const [styleMenu, setStyleMenu] = useState<{ x: number; y: number } | null>(null);
+  const [wheel, setWheel] = useState<{ x: number; y: number; ideas: BlockIdea[]; loading: boolean; error: string } | null>(null);
   const replaceRangeRef = useRef<{ from: number; to: number } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -159,6 +161,37 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
     void ai.run('/api/ai/style-transfer', { chapterId, sourceText, target }, 'style', [STYLE_TARGETS[target].label]);
   }
 
+  async function openBlockBreaker() {
+    if (!editor) return;
+    const ctx = cursorContext(editor);
+    const rect = editor.view.coordsAtPos(editor.state.selection.from);
+    setWheel({ x: rect.left, y: rect.bottom + 8, ideas: [], loading: true, error: '' });
+    try {
+      const res = await fetch('/api/ai/block-breaker/ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId, before: ctx.before, after: ctx.after }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setWheel((w) => (w ? { ...w, loading: false, error: json.error ?? '生成失败' } : w));
+        return;
+      }
+      setWheel((w) => (w ? { ...w, loading: false, ideas: json.ideas as BlockIdea[] } : w));
+    } catch {
+      setWheel((w) => (w ? { ...w, loading: false, error: '破局点子生成失败' } : w));
+    }
+  }
+
+  async function adoptWheelIdea(category: string, idea: string) {
+    if (!editor) return;
+    const ctx = cursorContext(editor);
+    const rect = editor.view.coordsAtPos(editor.state.selection.from);
+    setWheel(null);
+    setOverlayPos({ x: rect.left, y: rect.bottom + 8 });
+    void ai.run('/api/ai/block-breaker/continue', { chapterId, before: ctx.before, after: ctx.after, category, idea }, 'blockbreak', [category]);
+  }
+
   function adopt(index: number) {
     if (!editor) return;
     const text = aiRef.current.state.branches[index]?.text;
@@ -201,6 +234,10 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
       setStyleMenu(null);
       handled = true;
     }
+    if (wheel) {
+      setWheel(null);
+      handled = true;
+    }
     if (overlayPos || ai.state.branches.length > 0 || ai.state.error) {
       closeOverlay();
       handled = true;
@@ -213,8 +250,18 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-white">
-      <div className="border-b border-gray-100 px-8 py-3 text-center">
-        <h2 className="font-medium">{title}</h2>
+      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-2">
+        <div className="flex-1 text-center">
+          <h2 className="font-medium">{title}</h2>
+        </div>
+        <button
+          onClick={() => void openBlockBreaker()}
+          disabled={ai.state.loading}
+          title="剧情破局轮盘：从当前困局生成非常规变数"
+          className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          🎡 破局
+        </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {editor ? <EditorContent editor={editor} className="h-full" /> : null}
@@ -284,6 +331,38 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
               {STYLE_TARGETS[t].label}
             </button>
           ))}
+        </div>
+      )}
+      {wheel && (
+        <div
+          className="fixed z-50 w-96 rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
+          style={{ left: Math.max(8, wheel.x), top: Math.max(8, wheel.y) }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-500">剧情破局轮盘</span>
+            <span className="flex gap-2">
+              <button onClick={() => void openBlockBreaker()} disabled={wheel.loading} className="text-xs text-blue-600">再转一次</button>
+              <button onClick={() => setWheel(null)} className="text-xs text-gray-400 hover:text-gray-700">✕</button>
+            </span>
+          </div>
+          {wheel.loading && <p className="mt-2 text-xs text-amber-500">转盘中…</p>}
+          {wheel.error && <p className="mt-2 text-xs text-red-600">{wheel.error}</p>}
+          <div className="mt-2 space-y-2">
+            {wheel.ideas.map((idea, i) => (
+              <div key={i} className="rounded border border-gray-100 p-2 text-xs">
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">{idea.category}</span>
+                <span className="ml-2 font-medium text-gray-700">{idea.title}</span>
+                <p className="mt-1 text-gray-600">{idea.idea}</p>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void adoptWheelIdea(idea.category, idea.idea)}
+                  className="mt-1 text-blue-600 hover:underline"
+                >
+                  以此破局续写
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
