@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { BEAT_TEMPLATES, templateToVolumeSkeleton } from '@/lib/beats/templates';
 import type { SkeletonPayload } from '@/lib/beats/templates';
-import type { Volume } from '@/lib/types';
+import type { ConsistencyIssue, Volume } from '@/lib/types';
 
 interface Props {
   projectId: string;
@@ -23,6 +23,9 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState('');
   const [preview, setPreview] = useState<SkeletonPayload | null>(null);
+  const [checkIssues, setCheckIssues] = useState<ConsistencyIssue[]>([]);
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [checkSkipped, setCheckSkipped] = useState('');
 
   async function saveSummary() {
     setBusy(true);
@@ -112,6 +115,22 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
     }
   }
 
+  async function runVolumeCheck() {
+    setCheckLoading(true);
+    try {
+      const res = await fetch('/api/ai/outline-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volumeId: volume.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setCheckIssues((json.issues as ConsistencyIssue[]) ?? []);
+      setCheckSkipped(json.aiSkipped ?? '');
+    } finally {
+      setCheckLoading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
       <div className="flex max-h-full w-full max-w-2xl flex-col rounded-lg bg-white p-5 shadow-xl">
@@ -161,6 +180,26 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
           </div>
           {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
           {saved && <p className="mt-2 text-xs text-emerald-600">已保存</p>}
+          <div className="mt-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-gray-700">卷逻辑预演</h4>
+              <button onClick={() => void runVolumeCheck()} disabled={checkLoading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white disabled:opacity-50">
+                {checkLoading ? '检查中…' : '预演'}
+              </button>
+            </div>
+            {checkSkipped && <p className="mt-1 text-xs text-amber-600">{checkSkipped}</p>}
+            {checkIssues.length === 0 && !checkLoading && <p className="mt-1 text-xs text-gray-400">未发现问题</p>}
+            <ul className="mt-1 space-y-2">
+              {checkIssues.map((issue, i) => (
+                <li key={i} className="rounded border border-amber-200 bg-amber-50 p-2 text-xs">
+                  <span className="font-medium text-amber-800">{issue.type}</span>
+                  <span className="ml-2 text-gray-500">{issue.text}</span>
+                  <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>
+                  <p className="text-gray-600">建议：{issue.suggestion}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5">关闭</button>

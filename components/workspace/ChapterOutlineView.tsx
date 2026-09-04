@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { useAutosave } from '@/lib/useAutosave';
 import { BEAT_TEMPLATES, templateFirstChapterBeats } from '@/lib/beats/templates';
 import type { Beat } from '@/lib/beats/templates';
-import type { ChapterWithVolume, Scene } from '@/lib/types';
+import type { ChapterWithVolume, ConsistencyIssue, Scene } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -35,6 +35,9 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState('');
   const [preview, setPreview] = useState<Beat[] | null>(null);
+  const [checkIssues, setCheckIssues] = useState<ConsistencyIssue[]>([]);
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [checkSkipped, setCheckSkipped] = useState('');
   const { data, mutate } = useSWR<{ scenes: Scene[] }>(`/api/chapters/${chapter.id}/scenes`, fetcher);
   const scenes = data?.scenes ?? [];
 
@@ -169,6 +172,22 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
     }
   }
 
+  async function runOutlineCheck() {
+    setCheckLoading(true);
+    try {
+      const res = await fetch('/api/ai/outline-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setCheckIssues((json.issues as ConsistencyIssue[]) ?? []);
+      setCheckSkipped(json.aiSkipped ?? '');
+    } finally {
+      setCheckLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-8 py-6 text-sm">
       <div className="flex items-center justify-between">
@@ -288,6 +307,24 @@ export default function ChapterOutlineView({ chapter, onOutlineSaved }: Props) {
                 {confirmingId === s.id ? '确认删?' : '删'}
               </button>
             </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex items-center justify-between">
+        <h4 className="font-medium text-gray-700">逻辑预演</h4>
+        <button onClick={() => void runOutlineCheck()} disabled={checkLoading} className="rounded bg-blue-600 px-3 py-1 text-xs text-white disabled:opacity-50">
+          {checkLoading ? '检查中…' : '预演'}
+        </button>
+      </div>
+      {checkSkipped && <p className="mt-1 text-xs text-amber-600">{checkSkipped}</p>}
+      {checkIssues.length === 0 && !checkLoading && <p className="mt-1 text-xs text-gray-400">未发现问题</p>}
+      <ul className="mt-1 space-y-2">
+        {checkIssues.map((issue, i) => (
+          <li key={i} className="rounded border border-amber-200 bg-amber-50 p-2 text-xs">
+            <span className="font-medium text-amber-800">{issue.type}</span>
+            <span className="ml-2 text-gray-500">{issue.text}</span>
+            <p className="mt-0.5 text-gray-600">原因：{issue.reason}</p>
+            <p className="text-gray-600">建议：{issue.suggestion}</p>
           </li>
         ))}
       </ul>
