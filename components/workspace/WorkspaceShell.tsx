@@ -7,6 +7,7 @@ import ChapterEditor from './ChapterEditor';
 import ChapterOutlineView from './ChapterOutlineView';
 import InspectorPanel from './InspectorPanel';
 import SettingsModal from './SettingsModal';
+import ComplianceModal from './ComplianceModal';
 import { useAutosave } from '@/lib/useAutosave';
 import { countWords } from '@/lib/wordCount';
 import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
@@ -22,6 +23,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCompliance, setShowCompliance] = useState(false);
   const [view, setView] = useState<'write' | 'outline'>('write');
   const contentRef = useRef('');
 
@@ -105,6 +107,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <SaveBadge state={autosave.state} onRetry={autosave.retry} />
           <span>{wordCount} 字</span>
+          <button onClick={() => setShowCompliance(true)} className="text-gray-500 hover:text-blue-600">合规</button>
           <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-blue-600">设置</button>
         </div>
       </header>
@@ -163,6 +166,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         />
       </div>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showCompliance && <ComplianceModal projectId={projectId} onClose={() => setShowCompliance(false)} />}
     </div>
   );
 }
