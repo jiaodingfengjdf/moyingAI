@@ -195,6 +195,12 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     setRefreshToken((t) => t + 1);
   }
 
+  async function handleForked(id: string) {
+    await autosave.flush();
+    await mutateChapters();
+    await switchChapter(id);
+  }
+
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2">
@@ -269,6 +275,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           saveState={autosave.state}
           wordCount={wordCount}
           onRestored={() => void handleRestored()}
+          onForked={(id) => void handleForked(id)}
         />
       </div>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}

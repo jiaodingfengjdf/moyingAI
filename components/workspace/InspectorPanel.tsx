@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import SnapshotDiff from './SnapshotDiff';
 import EmotionChart from './EmotionChart';
+import TimeMachineModal from './TimeMachineModal';
 import { emotionWarnings } from '@/lib/ai/emotion';
 import type { AIRequest, ChapterSnapshot, ChapterWithVolume, ConsistencyIssue } from '@/lib/types';
 
@@ -14,9 +15,10 @@ interface Props {
   saveState: string;
   wordCount: number;
   onRestored: () => void;
+  onForked: (chapterId: string) => void;
 }
 
-export default function InspectorPanel({ chapter, saveState, wordCount, onRestored }: Props) {
+export default function InspectorPanel({ chapter, saveState, wordCount, onRestored, onForked }: Props) {
   const { data, isLoading, mutate } = useSWR<{ snapshots: ChapterSnapshot[] }>(
     chapter ? `/api/chapters/${chapter.id}/snapshots` : null,
     fetcher,
@@ -47,6 +49,7 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [emotionBusy, setEmotionBusy] = useState(false);
   const [emotionMsg, setEmotionMsg] = useState('');
   const [exportMsg, setExportMsg] = useState('');
+  const [timeOpen, setTimeOpen] = useState(false);
   const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
@@ -238,7 +241,10 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
       </section>
 
       <section className="rounded-lg border border-gray-200 p-3">
-        <h3 className="text-xs font-medium text-gray-500">版本快照</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-gray-500">版本快照</h3>
+          <button onClick={() => setTimeOpen(true)} disabled={!chapter} className="text-xs text-purple-600 disabled:text-gray-300">时光机</button>
+        </div>
         <div className="mt-2 flex gap-1">
           <input
             value={label}
@@ -404,6 +410,17 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
       {diff && chapter && (
         <SnapshotDiff current={chapter.content} snapshot={diff} onClose={() => setDiff(null)} />
       )}
+      {timeOpen && chapter && (
+        <TimeMachineModal
+          chapterId={chapter.id}
+          currentContent={chapter.content}
+          onClose={() => setTimeOpen(false)}
+          onForked={(id) => {
+            setTimeOpen(false);
+            onForked(id);
+          }}
+        />
+      )}
     </aside>
   );
 }
@@ -426,5 +443,12 @@ function saveLabel(state: string): string {
 function kindLabel(kind: string): string {
   if (kind === 'ghostwrite') return '伴写';
   if (kind === 'rewrite') return '润色';
+  if (kind === 'style') return '文风迁移';
+  if (kind === 'poison') return '毒点审查';
+  if (kind === 'emotion') return '情绪分析';
+  if (kind === 'outline') return '大纲骨架';
+  if (kind === 'outline-check') return '大纲预演';
+  if (kind === 'mc') return '分支推演';
+  if (kind === 'blockbreaker') return '破局';
   return kind;
 }
