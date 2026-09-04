@@ -48,7 +48,9 @@ export async function assembleContext(
   const entities = entityMatch(opts.before + opts.after, listEntities(opts.projectId, db));
   const queryText = opts.before.slice(-2000);
   const semantic = await semanticSearch(opts.projectId, queryText, 3, db).catch(() => []);
-  const history = semantic.length > 0 ? semantic : searchHistory(opts.projectId, queryText, db);
+  const history = semantic.length > 0
+    ? semantic.map((h) => ({ title: h.title, volumeTitle: '', snippet: h.snippet }))
+    : searchHistory(opts.projectId, queryText, db);
   return {
     volumeTitle: volume?.title ?? '',
     chapterTitle: chapter.title,
