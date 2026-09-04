@@ -9,12 +9,13 @@ interface Props {
   onInsert: (index: number) => void;
   onReplace: (index: number) => void;
   onMerge?: (indices: number[]) => void;
+  canReplace: boolean;
   onClose: () => void;
   onRetry: () => void;
 }
 
-export default function AIOverlay({ position, state, onInsert, onReplace, onMerge, onClose, onRetry }: Props) {
-  const isRewrite = state.kind === 'rewrite';
+export default function AIOverlay({ position, state, onInsert, onReplace, onMerge, canReplace, onClose, onRetry }: Props) {
+  const isRewrite = state.kind === 'rewrite' || state.kind === 'style';
   const [selected, setSelected] = useState<number[]>([]);
 
   function toggle(index: number) {
@@ -27,7 +28,7 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onMerg
       style={{ left: Math.max(8, position.x), top: Math.max(8, position.y) }}
     >
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-medium text-gray-500">{isRewrite ? 'AI 润色建议' : '三条续写方向'}</span>
+        <span className="text-xs font-medium text-gray-500">{overlayTitle(state.kind)}</span>
         <span className="flex items-center gap-2">
           {!isRewrite && (
             <button
@@ -73,7 +74,7 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onMerg
               >
                 插入
               </button>
-              {isRewrite && (
+              {isRewrite && canReplace && (
                 <button
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onReplace(i)}
@@ -89,4 +90,10 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onMerg
       </div>
     </div>
   );
+}
+
+function overlayTitle(kind: string | null): string {
+  if (kind === 'rewrite') return 'AI 润色建议';
+  if (kind === 'style') return '文风迁移';
+  return '三条续写方向';
 }

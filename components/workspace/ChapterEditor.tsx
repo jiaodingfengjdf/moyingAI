@@ -7,6 +7,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { parseDoc, serializeDoc, type Doc } from '@/lib/markdown';
 import { GHOST_BRANCHES, REWRITE_MODES, type RewriteMode } from '@/lib/ai/prompts';
+import { STYLE_TARGETS, type StyleTarget } from '@/lib/ai/style';
 import { useAIStream } from '@/lib/useAIStream';
 import AIOverlay from './AIOverlay';
 
@@ -22,13 +23,14 @@ const MENU_ACTIONS: { key: string; label: string; mode: RewriteMode | null }[] =
   { key: 'senses', label: '五感', mode: 'senses' },
   { key: 'pace', label: '节奏', mode: 'pace' },
   { key: 'mood', label: '意境', mode: 'mood' },
+  { key: 'style', label: '文风', mode: null },
   { key: 'check', label: '诊断', mode: null },
 ];
 
 export default function ChapterEditor({ chapterId, title, initialContent, onChange }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
-  const [rewriteMode, setRewriteMode] = useState<RewriteMode | null>(null);
+  const [styleMenu, setStyleMenu] = useState<{ x: number; y: number } | null>(null);
   const replaceRangeRef = useRef<{ from: number; to: number } | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -112,17 +114,45 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
     if (empty) return;
     const ctx = selectionContext(editor);
     replaceRangeRef.current = { from, to };
-    setRewriteMode(mode);
     const rect = editor.view.coordsAtPos(to);
     setOverlayPos({ x: rect.left, y: rect.bottom + 8 });
     void ai.run('/api/ai/rewrite', { chapterId, mode, ...ctx }, 'rewrite', [REWRITE_MODES[mode].label]);
+  }
+
+  function openStyleMenu() {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    const pos = empty ? from : to;
+    const rect = editor.view.coordsAtPos(pos);
+    setStyleMenu({ x: rect.left, y: rect.bottom + 8 });
+  }
+
+  function triggerStyle(target: StyleTarget) {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    let sourceText: string;
+    if (!empty) {
+      replaceRangeRef.current = { from, to };
+      sourceText = editor.state.doc.textBetween(from, to, '\n', ' ');
+    } else {
+      replaceRangeRef.current = null;
+      const before = cursorContext(editor).before;
+      sourceText = before.slice(-1500);
+      if (!sourceText.trim()) sourceText = editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', ' ').slice(-1500);
+    }
+    if (!sourceText.trim()) return;
+    const pos = empty ? from : to;
+    const rect = editor.view.coordsAtPos(pos);
+    setStyleMenu(null);
+    setOverlayPos({ x: rect.left, y: rect.bottom + 8 });
+    void ai.run('/api/ai/style-transfer', { chapterId, sourceText, target }, 'style', [STYLE_TARGETS[target].label]);
   }
 
   function adopt(index: number) {
     if (!editor) return;
     const text = aiRef.current.state.branches[index]?.text;
     if (!text) return;
-    if (rewriteMode && replaceRangeRef.current) {
+    if (aiRef.current.state.kind !== 'ghostwrite' && replaceRangeRef.current) {
       editor.chain().focus().insertContentAt(replaceRangeRef.current, text).run();
     } else {
       editor.chain().focus().insertContent(text).run();
@@ -151,7 +181,6 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
   function closeOverlay() {
     ai.clear();
     setOverlayPos(null);
-    setRewriteMode(null);
     replaceRangeRef.current = null;
   }
 
@@ -181,6 +210,15 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
               >
                 {a.label}
               </button>
+            ) : a.key === 'style' ? (
+              <button
+                key={a.key}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => openStyleMenu()}
+                className="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+              >
+                {a.label}
+              </button>
             ) : (
               <button
                 key={a.key}
@@ -201,9 +239,27 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
           onInsert={adopt}
           onReplace={adopt}
           onMerge={mergeBranches}
+          canReplace={ai.state.kind !== 'ghostwrite' && replaceRangeRef.current !== null}
           onClose={closeOverlay}
           onRetry={ai.retry}
         />
+      )}
+      {styleMenu && (
+        <div
+          className="fixed z-50 flex flex-col gap-1 rounded-md border border-gray-200 bg-white px-1 py-1 shadow-lg"
+          style={{ left: Math.max(8, styleMenu.x), top: Math.max(8, styleMenu.y) }}
+        >
+          {(Object.keys(STYLE_TARGETS) as StyleTarget[]).map((t) => (
+            <button
+              key={t}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => triggerStyle(t)}
+              className="rounded px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-100"
+            >
+              {STYLE_TARGETS[t].label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
