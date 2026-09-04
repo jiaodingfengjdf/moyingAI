@@ -25,6 +25,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     toEntityId,
     type,
     strength: Math.max(-100, Math.min(100, strength)),
+    chapterAnchorId: typeof body?.chapterAnchorId === 'string' ? body.chapterAnchorId : null,
     note: typeof body?.note === 'string' ? body.note : '',
   });
   return NextResponse.json({ relationship }, { status: 201 });

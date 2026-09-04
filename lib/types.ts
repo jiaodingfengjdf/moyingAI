@@ -103,6 +103,7 @@ export interface Relationship {
   type: string;
   strength: number;
   chapterAnchorId: string | null;
+  chapterAnchorTitle: string | null;
   note: string;
 }
 

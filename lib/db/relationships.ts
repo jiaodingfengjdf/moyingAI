@@ -4,10 +4,11 @@ import type { Relationship } from '../types';
 
 const SELECT = `
   SELECT r.id, r.projectId, r.fromEntityId, r.toEntityId, r.type, r.strength, r.chapterAnchorId, r.note,
-    ef.name AS fromName, et.name AS toName
+    ef.name AS fromName, et.name AS toName, ca.title AS chapterAnchorTitle
   FROM relationship r
   JOIN entity ef ON ef.id = r.fromEntityId
   JOIN entity et ON et.id = r.toEntityId
+  LEFT JOIN chapter ca ON ca.id = r.chapterAnchorId
 `;
 
 export function listRelationships(projectId: string, db: DB = getDb()): Relationship[] {
@@ -38,8 +39,9 @@ export function updateRelationship(
 ): Relationship | null {
   const current = getRelationship(id, db);
   if (!current) return null;
+  const anchor = 'chapterAnchorId' in patch ? (patch.chapterAnchorId ?? null) : current.chapterAnchorId;
   db.prepare('UPDATE relationship SET type = ?, strength = ?, chapterAnchorId = ?, note = ? WHERE id = ?')
-    .run(patch.type ?? current.type, patch.strength ?? current.strength, patch.chapterAnchorId ?? current.chapterAnchorId, patch.note ?? current.note, id);
+    .run(patch.type ?? current.type, patch.strength ?? current.strength, anchor, patch.note ?? current.note, id);
   return getRelationship(id, db)!;
 }
 

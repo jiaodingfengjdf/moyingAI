@@ -63,6 +63,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
           <div key={r.id} className="group flex items-center justify-between gap-1 py-0.5 pl-3 text-gray-600">
             <button onClick={() => setRelationForm(r)} className="min-w-0 flex-1 truncate text-left" title={r.note}>
               {r.fromName} → {r.toName} · {r.type} · {r.strength}
+              {r.chapterAnchorTitle && <span className="block text-xs text-gray-400">锚点：{r.chapterAnchorTitle}</span>}
             </button>
             <button
               onClick={async () => {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import type { Entity, Relationship } from '@/lib/types';
+import type { ChapterWithVolume, Entity, Relationship } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -15,14 +15,17 @@ interface Props {
 
 export default function RelationshipForm({ projectId, relationship, onClose, onSaved }: Props) {
   const { data } = useSWR<{ entities: Entity[] }>(`/api/projects/${projectId}/entities`, fetcher);
+  const { data: chaptersData } = useSWR<{ chapters: ChapterWithVolume[] }>(`/api/projects/${projectId}/chapters`, fetcher);
   const [fromEntityId, setFromEntityId] = useState(relationship?.fromEntityId ?? '');
   const [toEntityId, setToEntityId] = useState(relationship?.toEntityId ?? '');
   const [type, setType] = useState(relationship?.type ?? '从属');
   const [strength, setStrength] = useState(relationship?.strength ?? 0);
   const [note, setNote] = useState(relationship?.note ?? '');
+  const [anchorChapterId, setAnchorChapterId] = useState(relationship?.chapterAnchorId ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const entities = data?.entities ?? [];
+  const chapters = chaptersData?.chapters ?? [];
 
   async function save() {
     setBusy(true);
@@ -31,7 +34,7 @@ export default function RelationshipForm({ projectId, relationship, onClose, onS
       const res = await fetch(relationship ? `/api/relationships/${relationship.id}` : `/api/projects/${projectId}/relationships`, {
         method: relationship ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromEntityId, toEntityId, type, strength, note }),
+        body: JSON.stringify({ fromEntityId, toEntityId, type, strength, note, chapterAnchorId: anchorChapterId || null }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -65,6 +68,10 @@ export default function RelationshipForm({ projectId, relationship, onClose, onS
             好感度：{strength}（-100 敌视 ~ +100 亲密）
             <input type="range" min={-100} max={100} value={strength} onChange={(e) => setStrength(Number(e.target.value))} />
           </label>
+          <select value={anchorChapterId} onChange={(e) => setAnchorChapterId(e.target.value)} className="w-full rounded border border-gray-300 px-2 py-1">
+            <option value="">章节锚点（无）</option>
+            {chapters.map((c) => <option key={c.id} value={c.id}>{c.volumeTitle}·{c.title}</option>)}
+          </select>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="备注" className="w-full rounded border border-gray-300 px-2 py-1" />
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
