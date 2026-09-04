@@ -298,6 +298,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         </main>
         <InspectorPanel
           chapter={current}
+          liveText={mdText}
           saveState={autosave.state}
           wordCount={wordCount}
           onRestored={() => void handleRestored()}

@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import SnapshotDiff from './SnapshotDiff';
 import EmotionChart from './EmotionChart';
 import TimeMachineModal from './TimeMachineModal';
+import LiveEmotionPulse from './LiveEmotionPulse';
 import { emotionWarnings } from '@/lib/ai/emotion';
 import type { AIRequest, ChapterSnapshot, ChapterWithVolume, ConsistencyIssue } from '@/lib/types';
 
@@ -12,13 +13,14 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface Props {
   chapter: ChapterWithVolume | null;
+  liveText?: string;
   saveState: string;
   wordCount: number;
   onRestored: () => void;
   onForked: (chapterId: string) => void;
 }
 
-export default function InspectorPanel({ chapter, saveState, wordCount, onRestored, onForked }: Props) {
+export default function InspectorPanel({ chapter, liveText = '', saveState, wordCount, onRestored, onForked }: Props) {
   const { data, isLoading, mutate } = useSWR<{ snapshots: ChapterSnapshot[] }>(
     chapter ? `/api/chapters/${chapter.id}/snapshots` : null,
     fetcher,
@@ -319,26 +321,28 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
         </div>
         {emotionMsg && <p className="mt-1 text-xs text-emerald-600">{emotionMsg}</p>}
         {emotionBusy && <p className="mt-1 text-xs text-amber-500">分析中…</p>}
+        {chapter && <LiveEmotionPulse text={liveText} chapterId={chapter.id} />}
         {currentAnalysis ? (
-          <div className="mt-2 space-y-1 text-xs">
-            {[
-              ['压抑', currentAnalysis.buildUp, '#64748b'],
-              ['期待', currentAnalysis.anticipation, '#d97706'],
-              ['释放', currentAnalysis.release, '#e11d48'],
-            ].map(([label, value, color]) => (
-              <div key={label as string} className="flex items-center gap-1">
-                <span className="w-6 text-gray-500">{label}</span>
-                <div className="h-2 min-w-0 flex-1 rounded bg-gray-100">
-                  <div className="h-2 rounded" style={{ width: `${(value as number) * 10}%`, backgroundColor: color as string }} />
+          <div className="mt-2 rounded border border-blue-100 bg-blue-50/50 p-2">
+            <p className="text-[10px] font-medium text-blue-600">AI 深度分析</p>
+            <div className="mt-1.5 space-y-1 text-xs">
+              {[
+                ['压抑', currentAnalysis.buildUp, '#64748b'],
+                ['期待', currentAnalysis.anticipation, '#d97706'],
+                ['释放', currentAnalysis.release, '#e11d48'],
+              ].map(([label, value, color]) => (
+                <div key={label as string} className="flex items-center gap-1">
+                  <span className="w-6 text-gray-500">{label}</span>
+                  <div className="h-2 min-w-0 flex-1 rounded bg-gray-100">
+                    <div className="h-2 rounded" style={{ width: `${(value as number) * 10}%`, backgroundColor: color as string }} />
+                  </div>
+                  <span className="w-6 text-right text-gray-500">{value as number}</span>
                 </div>
-                <span className="w-6 text-right text-gray-500">{value as number}</span>
-              </div>
-            ))}
-            {currentAnalysis.driver && <p className="pt-1 text-gray-500">驱动：{currentAnalysis.driver}</p>}
+              ))}
+              {currentAnalysis.driver && <p className="pt-1 text-gray-500">驱动：{currentAnalysis.driver}</p>}
+            </div>
           </div>
-        ) : (
-          <p className="mt-1 text-xs text-gray-400">暂无本章分析，点「分析本章」</p>
-        )}
+        ) : null}
         {emotionRows.length >= 2 && <EmotionChart rows={emotionRows} />}
         <ul className="mt-1 space-y-1">
           {warnings.map((w, i) => (

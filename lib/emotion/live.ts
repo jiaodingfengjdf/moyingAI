@@ -9,10 +9,6 @@ const BUILD = ['羞辱', '重伤', '背叛', '无计可施', '颤抖', '咬牙',
 const ANT = ['却', '难道', '竟', '忽然', '底牌', '秘密', '陷阱', '来了', '准备', '计划', '破绽', '转机', '暗处', '幕后'];
 const REL = ['反杀', '揭穿', '身份曝光', '恢复', '突破', '胜利', '冷笑', '秒杀', '碾压', '打脸', '爽', '翻盘', '复仇', '亮出底牌', '降维打击'];
 
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
-}
-
 function countHits(text: string, words: string[]): number {
   return words.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
 }
