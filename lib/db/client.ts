@@ -36,6 +36,12 @@ export function openDatabase(dbPath: string = resolveDbPath()): DB {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   applyMigrations(db);
+  try {
+    // 每次打开后把 WAL 折回主库文件，降低进程被强制终止时的数据丢失窗口
+    db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+  } catch {
+    // 内存库等场景忽略
+  }
   return db;
 }
 
