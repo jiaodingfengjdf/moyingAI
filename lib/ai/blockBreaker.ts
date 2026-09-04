@@ -8,6 +8,12 @@ export interface BlockIdea {
   idea: string;
 }
 
+const CATEGORY_SYNONYMS: Array<{ category: string; words: string[] }> = [
+  { category: '外部灾变', words: ['灾变', '天灾', '外部', '意外', '突袭', '环境', '山洪', '地震', '世界', '大势'] },
+  { category: '认知反转', words: ['认知', '反转', '真相', '身份', '谎言', '情报', '视角', '假象', '误会', '揭露', '隐藏'] },
+  { category: '底牌失效', words: ['底牌', '失效', '反制', '预判', '克制', '手段', '金手指', '后手', '王牌'] },
+];
+
 export function buildIdeasMessages(before: string, after: string): ChatMessage[] {
   return [
     {
@@ -20,21 +26,47 @@ export function buildIdeasMessages(before: string, after: string): ChatMessage[]
 }
 
 export function parseBlockIdeas(text: string): BlockIdea[] {
-  const stripped = text.trim().replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '');
-  try {
-    const parsed = JSON.parse(stripped) as unknown;
-    const list = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { ideas?: unknown }).ideas) ? (parsed as { ideas: unknown[] }).ideas : [];
-    return list
-      .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
-      .filter((x) => BREAK_CATEGORIES.includes(String(x.category ?? '') as (typeof BREAK_CATEGORIES)[number]))
-      .map((x) => ({
-        category: String(x.category),
-        title: String(x.title ?? '变数'),
-        idea: String(x.idea ?? ''),
-      }));
-  } catch {
-    return [];
+  const stripped = text.trim();
+  const fenceMatch = stripped.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidates = [fenceMatch?.[1] ?? stripped];
+  if (!fenceMatch) {
+    const first = stripped.indexOf('[');
+    const last = stripped.lastIndexOf(']');
+    if (first >= 0 && last > first) candidates.push(stripped.slice(first, last + 1));
   }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      const rawList = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as { ideas?: unknown }).ideas)
+          ? (parsed as { ideas: unknown[] }).ideas
+          : typeof parsed === 'object' && parsed !== null && !Array.isArray((parsed as { ideas?: unknown }).ideas)
+            ? [(parsed as Record<string, unknown>)]
+            : [];
+      const list = rawList.filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null);
+      const ideas = list
+        .map((x, i) => ({
+          category: normalizeCategory(String(x.category ?? ''), i),
+          title: String(x.title ?? '').trim(),
+          idea: String(x.idea ?? '').trim(),
+        }))
+        .filter((x) => x.idea || x.title);
+      if (ideas.length > 0) return ideas;
+    } catch {
+      // 继续尝试下一个候选
+    }
+  }
+  return [];
+}
+
+function normalizeCategory(raw: string, index: number): string {
+  const category = raw.trim();
+  if (BREAK_CATEGORIES.includes(category as (typeof BREAK_CATEGORIES)[number])) return category;
+  for (const syn of CATEGORY_SYNONYMS) {
+    if (syn.words.some((w) => category.includes(w))) return syn.category;
+  }
+  return BREAK_CATEGORIES[index % BREAK_CATEGORIES.length];
 }
 
 export function mockBlockIdeas(): BlockIdea[] {
