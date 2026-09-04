@@ -6,6 +6,7 @@ import SnapshotDiff from './SnapshotDiff';
 import EmotionChart from './EmotionChart';
 import TimeMachineModal from './TimeMachineModal';
 import LiveEmotionPulse from './LiveEmotionPulse';
+import SecretsModal from './SecretsModal';
 import { emotionWarnings } from '@/lib/ai/emotion';
 import type { AIRequest, ChapterSnapshot, ChapterWithVolume, ConsistencyIssue } from '@/lib/types';
 
@@ -62,6 +63,7 @@ export default function InspectorPanel({
   const [emotionMsg, setEmotionMsg] = useState('');
   const [exportMsg, setExportMsg] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
+  const [secretsOpen, setSecretsOpen] = useState(false);
   const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
@@ -407,13 +409,17 @@ export default function InspectorPanel({
       </section>
 
       <section className="rounded-lg border border-gray-200 p-3">
-        <h3 className="text-xs font-medium text-gray-500">角色状态 · 信息差</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-gray-500">角色状态 · 信息差</h3>
+          <button onClick={() => setSecretsOpen(true)} disabled={!chapter} className="text-xs text-purple-600 disabled:text-gray-300">秘密矩阵</button>
+        </div>
         {(statusData?.status ?? []).length === 0 && <p className="mt-1 text-xs text-gray-400">暂无实体状态</p>}
         <ul className="mt-1 space-y-1">
           {(statusData?.status ?? []).map((s) => (
             <li key={s.id} className="text-xs text-gray-600">
               <span className="font-medium">{s.name}</span>
-              <span className="text-gray-400"> · {Object.entries(s.latest).map(([k, v]) => `${k}=${String(v)}`).join(', ') || '无状态'}</span>
+              <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] text-gray-400">{typeLabel(s.type)}</span>
+              <StatusRows latest={s.latest} type={s.type} />
             </li>
           ))}
         </ul>
@@ -433,8 +439,66 @@ export default function InspectorPanel({
           }}
         />
       )}
+      {secretsOpen && chapter && (
+        <SecretsModal
+          projectId={chapter.projectId}
+          onClose={() => setSecretsOpen(false)}
+        />
+      )}
     </aside>
   );
+}
+
+function typeLabel(type: string): string {
+  if (type === 'character') return '人物';
+  if (type === 'faction') return '阵营';
+  if (type === 'location') return '地点';
+  if (type === 'system') return '体系';
+  if (type === 'artifact') return '道具';
+  return type;
+}
+
+function StatusRows({ latest, type }: { latest: Record<string, unknown>; type: string }) {
+  const rows = Object.entries(latest)
+    .map(([key, value]) => ({ key, label: keyLabel(key), value: String(value) }))
+    .filter((r) => r.value.trim());
+  if (rows.length === 0) return <span className="text-gray-400"> · 无状态</span>;
+  const belongings = latest.belongings ? String(latest.belongings).split(/[,，、]/).map((s) => s.trim()).filter(Boolean) : [];
+  return (
+    <div className="mt-0.5 space-y-0.5 text-gray-500">
+      {belongings.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-gray-400">随身道具：</span>
+          {belongings.map((item, i) => (
+            <span key={i} className="rounded bg-amber-50 px-1 text-[10px] text-amber-700">{item}</span>
+          ))}
+        </div>
+      )}
+      {rows
+        .filter((r) => !(type === 'character' && r.key === 'belongings'))
+        .map((r) => (
+          <div key={r.key} className="truncate" title={r.value}>
+            <span className="text-gray-400">{r.label}：</span>
+            {r.value}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+function keyLabel(key: string): string {
+  const labels: Record<string, string> = {
+    want: '欲望',
+    need: '需求/恐惧',
+    flaw: '缺陷',
+    moralBoundary: '道德底线',
+    belongings: '随身道具',
+    speechTic: '口癖',
+    speechStyle: '用词风格',
+    speechPace: '语速节奏',
+    speechRestraint: '隐忍度',
+  };
+  return labels[key] ?? key;
 }
 
 function locateIssue(issueIndex: number) {

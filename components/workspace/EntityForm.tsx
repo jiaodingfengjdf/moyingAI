@@ -135,7 +135,17 @@ export default function EntityForm({ projectId, entity, onClose, onSaved }: Prop
   }
 
   const personaKeys: Array<[string, string]> = type === 'character'
-    ? [['want', '表层欲望 Want'], ['need', '底层需求/恐惧 Need'], ['flaw', '缺陷 Flaw'], ['moralBoundary', '道德底线'], ['speechTic', '台词指纹·口癖'], ['speechStyle', '台词指纹·用词风格'], ['speechPace', '台词指纹·语速节奏'], ['speechRestraint', '台词指纹·情绪隐忍度']]
+    ? [
+        ['want', '表层欲望 Want'],
+        ['need', '底层需求/恐惧 Need'],
+        ['flaw', '缺陷 Flaw'],
+        ['moralBoundary', '道德底线'],
+        ['belongings', '随身道具（逗号分隔）'],
+        ['speechTic', '台词指纹·口癖'],
+        ['speechStyle', '台词指纹·用词风格'],
+        ['speechPace', '台词指纹·语速节奏'],
+        ['speechRestraint', '台词指纹·情绪隐忍度'],
+      ]
     : [];
 
   return (

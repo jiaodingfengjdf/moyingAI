@@ -41,6 +41,17 @@ export interface ProjectOutline {
   updatedAt: string;
 }
 
+export interface Secret {
+  id: string;
+  projectId: string;
+  title: string;
+  detail: string;
+  knownEntityIds: string[];
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Chapter {
   id: string;
   volumeId: string;

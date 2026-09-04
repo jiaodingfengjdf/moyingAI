@@ -162,4 +162,17 @@ export const MIGRATIONS: string[] = [
     updatedAt TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS "secret" (
+    "id" TEXT PRIMARY KEY,
+    projectId TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    knownEntityIds TEXT NOT NULL DEFAULT '[]',
+    note TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_secret_project ON "secret"(projectId, updatedAt);
+  `,
 ];
