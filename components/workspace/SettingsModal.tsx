@@ -6,6 +6,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [embedModel, setEmbedModel] = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -13,10 +14,11 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void fetch('/api/settings')
       .then((r) => r.json())
-      .then((d: { baseUrl: string; model: string; hasApiKey: boolean }) => {
+      .then((d: { baseUrl: string; model: string; hasApiKey: boolean; embedModel?: string }) => {
         setBaseUrl(d.baseUrl);
         setModel(d.model);
         setHasKey(d.hasApiKey);
+        setEmbedModel(d.embedModel ?? '');
       });
   }, []);
 
@@ -26,7 +28,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baseUrl, model, apiKey }),
+      body: JSON.stringify({ baseUrl, model, apiKey, embedModel }),
     });
     setBusy(false);
     if (res.ok) {
@@ -53,6 +55,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           <label className="flex flex-col gap-1">
             模型
             <input value={model} onChange={(e) => setModel(e.target.value)} className="rounded border border-gray-300 px-2 py-1" placeholder="deepseek-chat" />
+          </label>
+          <label className="flex flex-col gap-1">
+            嵌入模型（可选，用于语义检索）
+            <input value={embedModel} onChange={(e) => setEmbedModel(e.target.value)} className="rounded border border-gray-300 px-2 py-1" placeholder="留空则禁用，如 text-embedding-3-small" />
           </label>
           <label className="flex flex-col gap-1">
             API Key

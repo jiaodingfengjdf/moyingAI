@@ -10,6 +10,7 @@ function snapshot() {
     baseUrl: getSetting('ai.baseUrl') || 'https://api.deepseek.com',
     model: getSetting('ai.model') || 'deepseek-chat',
     hasApiKey: Boolean(getSetting('ai.apiKey') || envApiKey()),
+    embedModel: getSetting('ai.embedModel') || '',
   };
 }
 
@@ -27,6 +28,9 @@ export async function PUT(req: NextRequest) {
   }
   if (typeof body?.apiKey === 'string' && body.apiKey.trim()) {
     setSetting('ai.apiKey', body.apiKey.trim());
+  }
+  if (typeof body?.embedModel === 'string' && body.embedModel.trim()) {
+    setSetting('ai.embedModel', body.embedModel.trim());
   }
   return NextResponse.json(snapshot());
 }

@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import EntityForm from './EntityForm';
 import RelationshipForm from './RelationshipForm';
 import DialogueStudio from './DialogueStudio';
+import RelationGraphModal from './RelationGraphModal';
 import type { Entity, EntityType, Relationship } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -23,6 +24,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
   const [relationForm, setRelationForm] = useState<Relationship | 'new' | null>(null);
   const [confirmingRelation, setConfirmingRelation] = useState<string | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
   const entities = data?.entities ?? [];
   const relationships = relationData?.relationships ?? [];
   const groups = Object.keys(TYPE_LABELS) as EntityType[];
@@ -32,6 +34,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium text-gray-500">实体档案馆</h3>
         <span className="flex gap-2">
+          <button onClick={() => setGraphOpen(true)} className="text-blue-600">图谱</button>
           <button onClick={() => setStudioOpen(true)} className="text-blue-600">演练</button>
           <button onClick={() => setEditing('new')} className="text-blue-600">+ 实体</button>
         </span>
@@ -102,6 +105,7 @@ export default function EntityPanel({ projectId }: { projectId: string }) {
         />
       )}
       {studioOpen && <DialogueStudio projectId={projectId} onClose={() => setStudioOpen(false)} />}
+      {graphOpen && <RelationGraphModal projectId={projectId} onClose={() => setGraphOpen(false)} />}
     </div>
   );
 }
