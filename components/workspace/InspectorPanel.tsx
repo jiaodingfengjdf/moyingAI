@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import SnapshotDiff from './SnapshotDiff';
+import EmotionChart from './EmotionChart';
+import { emotionWarnings } from '@/lib/ai/emotion';
 import type { AIRequest, ChapterSnapshot, ChapterWithVolume, ConsistencyIssue } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -27,6 +29,10 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
     chapter ? `/api/projects/${chapter.projectId}/entity-status` : null,
     fetcher,
   );
+  const { data: emotionData, mutate: mutateEmotion } = useSWR<{ rows: Array<{ chapterId: string; title: string; buildUp: number; anticipation: number; release: number; driver: string }> }>(
+    chapter ? `/api/projects/${chapter.projectId}/emotion` : null,
+    fetcher,
+  );
   const [diff, setDiff] = useState<ChapterSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState('');
@@ -35,9 +41,50 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [issues, setIssues] = useState<ConsistencyIssue[]>([]);
   const [aiSkipped, setAiSkipped] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [emotionBusy, setEmotionBusy] = useState(false);
+  const [emotionMsg, setEmotionMsg] = useState('');
   const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
+  const emotionRows = emotionData?.rows ?? [];
+  const currentAnalysis = emotionRows.find((r) => r.chapterId === chapter?.id) ?? null;
+  const warnings = emotionWarnings(emotionRows);
+
+  async function analyzeChapter() {
+    if (!chapter) return;
+    setEmotionBusy(true);
+    setEmotionMsg('');
+    try {
+      const res = await fetch('/api/ai/emotion-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: chapter.id }),
+      });
+      if (res.ok) await mutateEmotion();
+    } finally {
+      setEmotionBusy(false);
+    }
+  }
+
+  async function analyzeVolume() {
+    if (!chapter) return;
+    setEmotionBusy(true);
+    setEmotionMsg('');
+    try {
+      const res = await fetch('/api/ai/emotion-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volumeId: chapter.volumeId }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setEmotionMsg(`已分析 ${json.count} 章`);
+        await mutateEmotion();
+      }
+    } finally {
+      setEmotionBusy(false);
+    }
+  }
 
   useEffect(() => {
     const handler = () => void mutateRequests();
@@ -192,6 +239,44 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
               <span>{kindLabel(r.kind)} · {r.model}</span>
               <span className={r.accepted ? 'text-emerald-600' : 'text-gray-400'}>{r.accepted ? '已采纳' : '未采纳'}</span>
             </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 p-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-gray-500">情绪脉冲</h3>
+          <span className="flex gap-1">
+            <button onClick={() => void analyzeChapter()} disabled={!chapter || emotionBusy} className="text-xs text-blue-600 disabled:text-gray-300">分析本章</button>
+            <button onClick={() => void analyzeVolume()} disabled={!chapter || emotionBusy} className="text-xs text-blue-600 disabled:text-gray-300">批量整卷</button>
+          </span>
+        </div>
+        {emotionMsg && <p className="mt-1 text-xs text-emerald-600">{emotionMsg}</p>}
+        {emotionBusy && <p className="mt-1 text-xs text-amber-500">分析中…</p>}
+        {currentAnalysis ? (
+          <div className="mt-2 space-y-1 text-xs">
+            {[
+              ['压抑', currentAnalysis.buildUp, '#64748b'],
+              ['期待', currentAnalysis.anticipation, '#d97706'],
+              ['释放', currentAnalysis.release, '#e11d48'],
+            ].map(([label, value, color]) => (
+              <div key={label as string} className="flex items-center gap-1">
+                <span className="w-6 text-gray-500">{label}</span>
+                <div className="h-2 min-w-0 flex-1 rounded bg-gray-100">
+                  <div className="h-2 rounded" style={{ width: `${(value as number) * 10}%`, backgroundColor: color as string }} />
+                </div>
+                <span className="w-6 text-right text-gray-500">{value as number}</span>
+              </div>
+            ))}
+            {currentAnalysis.driver && <p className="pt-1 text-gray-500">驱动：{currentAnalysis.driver}</p>}
+          </div>
+        ) : (
+          <p className="mt-1 text-xs text-gray-400">暂无本章分析，点「分析本章」</p>
+        )}
+        {emotionRows.length >= 2 && <EmotionChart rows={emotionRows} />}
+        <ul className="mt-1 space-y-1">
+          {warnings.map((w, i) => (
+            <li key={i} className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">{w}</li>
           ))}
         </ul>
       </section>
