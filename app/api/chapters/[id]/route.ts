@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteChapter, getChapter, updateChapter } from '@/lib/db/chapters';
+import { ensureChapterEmbedding } from '@/lib/ai/semanticSearch';
 import type { ChapterStatus } from '@/lib/types';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -22,6 +23,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: '没有可更新的字段' }, { status: 400 });
   const chapter = updateChapter(id, patch);
   if (!chapter) return NextResponse.json({ error: '章节不存在' }, { status: 404 });
+  if (patch.content !== undefined) void ensureChapterEmbedding(id).catch(() => {});
   return NextResponse.json({ chapter });
 }
 

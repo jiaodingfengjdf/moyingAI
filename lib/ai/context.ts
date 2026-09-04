@@ -2,6 +2,7 @@ import { getVolume } from '../db/volumes';
 import { getChapter } from '../db/chapters';
 import { listEntities } from '../db/entities';
 import { searchHistory } from '../db/search';
+import { semanticSearch } from './semanticSearch';
 import type { DB } from '../db/client';
 import type { Entity } from '../types';
 import { REWRITE_MODES, SYSTEM_PROMPT, type GhostBranchSpec, type RewriteMode } from './prompts';
@@ -45,7 +46,9 @@ export async function assembleContext(
   if (!chapter) throw new Error('章节不存在');
   const volume = getVolume(chapter.volumeId, db);
   const entities = entityMatch(opts.before + opts.after, listEntities(opts.projectId, db));
-  const history = searchHistory(opts.projectId, opts.before.slice(-2000), db);
+  const queryText = opts.before.slice(-2000);
+  const semantic = await semanticSearch(opts.projectId, queryText, 3, db).catch(() => []);
+  const history = semantic.length > 0 ? semantic : searchHistory(opts.projectId, queryText, db);
   return {
     volumeTitle: volume?.title ?? '',
     chapterTitle: chapter.title,
