@@ -263,6 +263,21 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
           🎡 破局
         </button>
       </div>
+      {editor && (
+        <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-100 px-3 py-1 text-xs text-gray-600">
+          <button onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'rounded bg-blue-100 px-2 py-0.5 font-bold' : 'rounded px-2 py-0.5 hover:bg-gray-100'} title="加粗">B</button>
+          <button onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'rounded bg-blue-100 px-2 py-0.5 italic' : 'rounded px-2 py-0.5 hover:bg-gray-100'} title="斜体">I</button>
+          <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={editor.isActive('heading', { level: 1 }) ? 'rounded bg-blue-100 px-2 py-0.5' : 'rounded px-2 py-0.5 hover:bg-gray-100'} title="一级标题">H1</button>
+          <button onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={editor.isActive('heading', { level: 2 }) ? 'rounded bg-blue-100 px-2 py-0.5' : 'rounded px-2 py-0.5 hover:bg-gray-100'} title="二级标题">H2</button>
+          <button onClick={() => editor.chain().focus().toggleBulletList().run()} className="rounded px-2 py-0.5 hover:bg-gray-100" title="无序列表">• 列表</button>
+          <button onClick={() => editor.chain().focus().toggleOrderedList().run()} className="rounded px-2 py-0.5 hover:bg-gray-100" title="有序列表">1. 列表</button>
+          <button onClick={() => editor.chain().focus().toggleBlockquote().run()} className="rounded px-2 py-0.5 hover:bg-gray-100" title="引用">” 引用</button>
+          <button onClick={() => editor.chain().focus().toggleCodeBlock().run()} className="rounded px-2 py-0.5 hover:bg-gray-100" title="代码块">` 代码</button>
+          <span className="mx-1 text-gray-200">|</span>
+          <button onClick={() => editor.chain().focus().undo().run()} title="撤销">↶ 撤销</button>
+          <button onClick={() => editor.chain().focus().redo().run()} title="重做">↷ 重做</button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {editor ? <EditorContent editor={editor} className="h-full" /> : null}
       </div>

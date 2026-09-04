@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import ChapterEditor from './ChapterEditor';
 import ChapterOutlineView from './ChapterOutlineView';
+import MarkdownSourceView from './MarkdownSourceView';
 import InspectorPanel from './InspectorPanel';
 import SettingsModal from './SettingsModal';
 import ComplianceModal from './ComplianceModal';
@@ -33,6 +34,8 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [showExit, setShowExit] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [view, setView] = useState<'write' | 'outline'>('write');
+  const [editorMode, setEditorMode] = useState<'visual' | 'source'>('visual');
+  const [mdText, setMdText] = useState('');
   const contentRef = useRef('');
   const lastSavedRef = useRef('');
   const chapterIdRef = useRef<string | null>(null);
@@ -104,6 +107,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const handleContentChange = useCallback(
     (content: string) => {
       contentRef.current = content;
+      setMdText(content);
       setWordCount(countWords(content));
       autosave.schedule(content);
     },
@@ -120,6 +124,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         baseContentRef.current = next.content;
       }
       contentRef.current = next?.content ?? '';
+      setMdText(next?.content ?? '');
       setWordCount(countWords(next?.content ?? ''));
     },
     [autosave, chaptersData],
@@ -169,6 +174,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       setCurrentChapterId(null);
       contentRef.current = '';
       baseContentRef.current = '';
+      setMdText('');
       setWordCount(0);
       return;
     }
@@ -177,6 +183,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       setCurrentChapterId(first.id);
       contentRef.current = first.content;
       baseContentRef.current = first.content;
+      setMdText(first.content);
       setWordCount(countWords(first.content));
     }
   }, [chapters, currentChapterId]);
@@ -191,6 +198,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     const restored = (updated?.chapters ?? []).find((c) => c.id === currentChapterId);
     contentRef.current = restored?.content ?? '';
     baseContentRef.current = restored?.content ?? '';
+    setMdText(restored?.content ?? '');
     setWordCount(countWords(restored?.content ?? ''));
     setRefreshToken((t) => t + 1);
   }
@@ -232,29 +240,47 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
             <p className="p-6 text-gray-500">加载中…</p>
           ) : current ? (
             <>
-              <div className="flex items-center justify-center gap-1 border-b border-gray-100 bg-white py-1">
-                {(['write', 'outline'] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    className={`rounded px-3 py-0.5 text-xs ${view === v ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
-                  >
-                    {v === 'write' ? '正文' : '大纲'}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-1">
+                <div className="flex gap-1">
+                  {(['write', 'outline'] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setView(v)}
+                      className={`rounded px-3 py-0.5 text-xs ${view === v ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                    >
+                      {v === 'write' ? '正文' : '大纲'}
+                    </button>
+                  ))}
+                </div>
+                {view === 'write' && (
+                  <div className="flex gap-1">
+                    {(['visual', 'source'] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setEditorMode(m)}
+                        className={`rounded px-2 py-0.5 text-xs ${editorMode === m ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        {m === 'visual' ? '可视化' : '源码'}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div
-                className={view === 'write' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
-                style={view !== 'write' ? { display: 'none' } : undefined}
+                className={view === 'write' && editorMode === 'visual' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
+                style={view !== 'write' || editorMode !== 'visual' ? { display: 'none' } : undefined}
               >
                 <ChapterEditor
-                  key={`${current.id}-${refreshToken}`}
+                  key={`${current.id}-${refreshToken}-${editorMode}`}
                   chapterId={current.id}
                   title={current.title}
-                  initialContent={current.content}
+                  initialContent={editorMode === 'visual' ? mdText : current.content}
                   onChange={handleContentChange}
                 />
               </div>
+              {view === 'write' && editorMode === 'source' && (
+                <MarkdownSourceView value={mdText} onChange={handleContentChange} />
+              )}
               {view === 'outline' && (
                 <ChapterOutlineView
                   key={`${current.id}-${refreshToken}`}
