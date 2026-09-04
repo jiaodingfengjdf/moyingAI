@@ -53,4 +53,13 @@ describe('AutosaveController', () => {
     expect(states).toContain('pending');
     expect(c.getState()).toBe('pending');
   });
+
+  it('dispose 时尽力保存待存内容', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const c = new AutosaveController(save);
+    c.schedule('a');
+    c.dispose();
+    await vi.runAllTimersAsync();
+    expect(save).toHaveBeenCalledWith('a');
+  });
 });

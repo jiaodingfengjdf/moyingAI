@@ -26,6 +26,9 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [showCompliance, setShowCompliance] = useState(false);
   const [view, setView] = useState<'write' | 'outline'>('write');
   const contentRef = useRef('');
+  const lastSavedRef = useRef('');
+  const chapterIdRef = useRef<string | null>(null);
+  chapterIdRef.current = currentChapterId;
 
   const volumes = useMemo(() => volumesData?.volumes ?? [], [volumesData]);
   const chapters = useMemo(() => chaptersData?.chapters ?? [], [chaptersData]);
@@ -41,6 +44,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
         body: JSON.stringify({ content }),
       });
       if (!res.ok) throw new Error('保存失败');
+      lastSavedRef.current = content;
       await mutateChapters();
     },
     [currentChapterId, mutateChapters],
@@ -62,11 +66,38 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       await autosave.flush();
       setCurrentChapterId(id);
       const next = (chaptersData?.chapters ?? []).find((c) => c.id === id);
+      if (next) lastSavedRef.current = next.content;
       contentRef.current = next?.content ?? '';
       setWordCount(countWords(next?.content ?? ''));
     },
     [autosave, chaptersData],
   );
+
+  // 关闭/隐藏/离开页面时用 keepalive 兜底保存防抖窗口内的内容
+  useEffect(() => {
+    const persist = () => {
+      const id = chapterIdRef.current;
+      const content = contentRef.current;
+      if (!id || !content || content === lastSavedRef.current) return;
+      void fetch(`/api/chapters/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') persist();
+    };
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', persist);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('beforeunload', persist);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // 初始选中第一章；当前章被删除时回退到第一章
   useEffect(() => {
@@ -119,6 +150,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           currentChapterId={currentChapterId}
           onSelect={(id) => void switchChapter(id)}
           onChanged={() => void handleChanged()}
+          flushPending={() => autosave.flush()}
         />
         <main className="flex min-w-0 flex-1 flex-col">
           {loading ? (

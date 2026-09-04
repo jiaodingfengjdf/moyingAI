@@ -13,9 +13,10 @@ interface Props {
   currentChapterId: string | null;
   onSelect: (id: string) => void;
   onChanged: () => void;
+  flushPending: () => Promise<void>;
 }
 
-export default function Sidebar({ projectId, volumes, chapters, currentChapterId, onSelect, onChanged }: Props) {
+export default function Sidebar({ projectId, volumes, chapters, currentChapterId, onSelect, onChanged, flushPending }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [creatingVolume, setCreatingVolume] = useState(false);
@@ -31,6 +32,7 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
   const [outlineVolume, setOutlineVolume] = useState<Volume | null>(null);
 
   async function call(url: string, options?: RequestInit) {
+    await flushPending();
     setBusy(true);
     setError('');
     try {

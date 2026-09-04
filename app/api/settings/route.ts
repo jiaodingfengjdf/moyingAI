@@ -11,6 +11,7 @@ function snapshot() {
     model: getSetting('ai.model') || 'deepseek-chat',
     hasApiKey: Boolean(getSetting('ai.apiKey') || envApiKey()),
     embedModel: getSetting('ai.embedModel') || '',
+    autoCheck: getSetting('ai.autoCheck') !== '0',
   };
 }
 
@@ -31,6 +32,9 @@ export async function PUT(req: NextRequest) {
   }
   if (typeof body?.embedModel === 'string' && body.embedModel.trim()) {
     setSetting('ai.embedModel', body.embedModel.trim());
+  }
+  if (typeof body?.autoCheck === 'boolean') {
+    setSetting('ai.autoCheck', body.autoCheck ? '1' : '0');
   }
   return NextResponse.json(snapshot());
 }

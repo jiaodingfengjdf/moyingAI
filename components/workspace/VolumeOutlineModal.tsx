@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRef } from 'react';
 import { BEAT_TEMPLATES, templateToVolumeSkeleton } from '@/lib/beats/templates';
 import type { SkeletonPayload } from '@/lib/beats/templates';
 import type { ConsistencyIssue, Volume } from '@/lib/types';
@@ -14,9 +15,11 @@ interface Props {
 
 export default function VolumeOutlineModal({ projectId, volume, onClose, onChanged }: Props) {
   const [summary, setSummary] = useState(volume.summary);
+  const initialRef = useRef(volume.summary);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
   const [templateId, setTemplateId] = useState(BEAT_TEMPLATES[0].id);
   const [templateMsg, setTemplateMsg] = useState('');
   const [genPrompt, setGenPrompt] = useState('');
@@ -27,7 +30,9 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkSkipped, setCheckSkipped] = useState('');
 
-  async function saveSummary() {
+  const dirty = summary !== initialRef.current && !saved;
+
+  async function saveSummary(thenClose = false) {
     setBusy(true);
     setError('');
     try {
@@ -42,10 +47,20 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
         return;
       }
       setSaved(true);
+      initialRef.current = summary;
       await onChanged();
+      if (thenClose) onClose();
     } finally {
       setBusy(false);
     }
+  }
+
+  function requestClose() {
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    setConfirmClose(true);
   }
 
   async function applyTemplate() {
@@ -136,7 +151,7 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
       <div className="flex max-h-full w-full max-w-2xl flex-col rounded-lg bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-medium">卷大纲 · {volume.title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">关闭 ✕</button>
+          <button onClick={requestClose} className="text-gray-500 hover:text-gray-800">关闭 ✕</button>
         </div>
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
           <label className="flex flex-col gap-1 text-sm">
@@ -201,12 +216,23 @@ export default function VolumeOutlineModal({ projectId, volume, onClose, onChang
             </ul>
           </div>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5">关闭</button>
-          <button onClick={() => void saveSummary()} disabled={busy} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">
-            保存大纲
-          </button>
-        </div>
+        {confirmClose ? (
+          <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            卷大纲有未保存修改，如何处理？
+            <div className="mt-2 flex justify-end gap-2">
+              <button onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5 text-gray-600">放弃修改</button>
+              <button onClick={() => setConfirmClose(false)} className="rounded border border-gray-300 px-3 py-1.5">取消</button>
+              <button onClick={() => void saveSummary(true)} disabled={busy} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">保存并关闭</button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={requestClose} className="rounded border border-gray-300 px-3 py-1.5">关闭</button>
+            <button onClick={() => void saveSummary()} disabled={busy} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">
+              保存大纲
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

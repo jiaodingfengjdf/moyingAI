@@ -14,6 +14,7 @@ export default function ProjectList() {
   const [penName, setPenName] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +42,11 @@ export default function ProjectList() {
   }
 
   async function remove(id: string) {
-    if (!confirm('确认删除该项目？其下的卷、章节与快照将一并删除。')) return;
+    if (confirmingId !== id) {
+      setConfirmingId(id);
+      return;
+    }
+    setConfirmingId(null);
     const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
     if (res.ok) await mutate();
   }
@@ -91,8 +96,12 @@ export default function ProjectList() {
                 {p.volumeCount} 卷 / {p.chapterCount} 章 · 更新于 {new Date(p.updatedAt).toLocaleString('zh-CN')}
               </div>
             </button>
-            <button onClick={() => remove(p.id)} className="text-sm text-red-600 hover:underline">
-              删除
+            <button
+              onClick={() => void remove(p.id)}
+              onBlur={() => setConfirmingId(null)}
+              className={`text-sm hover:underline ${confirmingId === p.id ? 'text-red-600' : 'text-red-600'}`}
+            >
+              {confirmingId === p.id ? '确认删除？此操作不可恢复' : '删除'}
             </button>
           </div>
         ))}

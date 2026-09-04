@@ -12,9 +12,10 @@ interface Props {
   canReplace: boolean;
   onClose: () => void;
   onRetry: () => void;
+  onStop: () => void;
 }
 
-export default function AIOverlay({ position, state, onInsert, onReplace, onMerge, canReplace, onClose, onRetry }: Props) {
+export default function AIOverlay({ position, state, onInsert, onReplace, onMerge, canReplace, onClose, onRetry, onStop }: Props) {
   const isRewrite = state.kind === 'rewrite' || state.kind === 'style';
   const [selected, setSelected] = useState<number[]>([]);
 
@@ -38,6 +39,15 @@ export default function AIOverlay({ position, state, onInsert, onReplace, onMerg
               className="text-xs text-blue-600 hover:underline disabled:text-gray-300"
             >
               合并插入{selected.length > 0 ? `（${selected.length}）` : ''}
+            </button>
+          )}
+          {state.loading && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onStop}
+              className="text-xs text-red-600 hover:underline"
+            >
+              停止
             </button>
           )}
           <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-700">✕</button>

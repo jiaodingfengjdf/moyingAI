@@ -41,6 +41,7 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [issues, setIssues] = useState<ConsistencyIssue[]>([]);
   const [aiSkipped, setAiSkipped] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [autoCheckOn, setAutoCheckOn] = useState(true);
   const [emotionBusy, setEmotionBusy] = useState(false);
   const [emotionMsg, setEmotionMsg] = useState('');
   const lastCheckedHash = useRef('');
@@ -110,12 +111,20 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   }, [chapter]);
 
   useEffect(() => {
+    void fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d: { autoCheck?: boolean }) => setAutoCheckOn(d.autoCheck ?? true))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!autoCheckOn) return;
     if (saveState !== 'saved' || !chapter) return;
     if (chapter.content === lastCheckedHash.current) return;
     lastCheckedHash.current = chapter.content;
     const timer = setTimeout(() => void runCheck(chapter.content), 3000);
     return () => clearTimeout(timer);
-  }, [saveState, chapter, runCheck]);
+  }, [saveState, chapter, runCheck, autoCheckOn]);
 
   async function createSnapshot() {
     if (!chapter) return;

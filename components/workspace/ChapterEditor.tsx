@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor, JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -39,6 +39,10 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
   aiRef.current = ai;
   const ghostRef = useRef<() => void>(() => {});
   const adoptRef = useRef<(index: number) => void>(() => {});
+  const cancelRef = useRef<() => void>(() => {});
+  cancelRef.current = ai.cancel;
+
+  useEffect(() => () => cancelRef.current(), []);
 
   const editor = useEditor(
     {
@@ -242,6 +246,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
           canReplace={ai.state.kind !== 'ghostwrite' && replaceRangeRef.current !== null}
           onClose={closeOverlay}
           onRetry={ai.retry}
+          onStop={ai.cancel}
         />
       )}
       {styleMenu && (

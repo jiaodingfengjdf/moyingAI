@@ -57,6 +57,11 @@ export class AutosaveController {
   dispose(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    this.pending = null;
+    if (this.pending !== null) {
+      // 卸载/离开时尽力落盘，避免防抖窗口内的输入随组件销毁丢失
+      const value = this.pending;
+      this.pending = null;
+      void this.save(value).catch(() => {});
+    }
   }
 }

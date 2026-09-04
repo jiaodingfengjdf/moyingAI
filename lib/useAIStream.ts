@@ -28,7 +28,11 @@ export function useAIStream() {
     setState((s) => ({ ...s, loading: false }));
   }, []);
 
-  const clear = useCallback(() => setState(IDLE), []);
+  const clear = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    setState(IDLE);
+  }, []);
 
   const run = useCallback(async (url: string, body: unknown, kind: 'ghostwrite' | 'rewrite' | 'style', labels: string[]) => {
     lastRef.current = { url, body, kind, labels };
