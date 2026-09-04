@@ -133,4 +133,16 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_scene_chapter ON scene(chapterId, "order");
   `,
+  `
+  CREATE TABLE IF NOT EXISTS chapter_analysis (
+    chapterId TEXT PRIMARY KEY REFERENCES chapter(id) ON DELETE CASCADE,
+    buildUp REAL NOT NULL,
+    anticipation REAL NOT NULL,
+    release REAL NOT NULL,
+    driver TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+  `,
 ];

@@ -3,11 +3,11 @@ import { openDatabase } from './client';
 
 const TABLES = [
   'project', 'volume', 'chapter', 'chapter_snapshot', 'entity',
-  'entity_timeline', 'relationship', 'foreshadowing', 'ai_request', 'setting', 'scene',
+  'entity_timeline', 'relationship', 'foreshadowing', 'ai_request', 'setting', 'scene', 'chapter_analysis',
 ];
 
 describe('migrations', () => {
-  it('创建全部表并把 user_version 设为 4', () => {
+  it('创建全部表并把 user_version 设为 5', () => {
     const db = openDatabase(':memory:');
     const rows = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[];
     const names = new Set(rows.map((r) => r.name));
@@ -15,7 +15,7 @@ describe('migrations', () => {
       expect(names.has(table), `缺少表 ${table}`).toBe(true);
     }
     const uv = db.prepare('PRAGMA user_version').get() as { user_version: number };
-    expect(uv.user_version).toBe(4);
+    expect(uv.user_version).toBe(5);
     db.close();
   });
 
