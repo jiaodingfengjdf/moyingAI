@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGenerateMessages, mockGenerate, parseBeats, parseSkeletonPayload } from './outline';
+import { buildGenerateMessages, buildOutlineCheckMessages, mockGenerate, parseBeats, parseSkeletonPayload } from './outline';
 
 describe('parseSkeletonPayload', () => {
   it('解析纯 JSON 与围栏 JSON 并做字段兜底', () => {
@@ -28,4 +28,12 @@ describe('生成消息与 mock', () => {
     expect(chap.kind).toBe('chapter');
     expect((chap.payload as { beats: unknown[] }).beats.length).toBeGreaterThanOrEqual(3);
   });
+});
+
+it('逻辑预演消息包含卷/章大纲与场景目标', () => {
+  const msgs = buildOutlineCheckMessages({ volumeOutline: '卷纲', chapterOutline: '章纲', scenes: [{ title: 'A', goal: '目标' }] });
+  expect(msgs[1].content).toContain('卷纲');
+  expect(msgs[1].content).toContain('章纲');
+  expect(msgs[1].content).toContain('目标');
+  expect(msgs[0].content).toContain('机械降神');
 });

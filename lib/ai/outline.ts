@@ -92,3 +92,22 @@ export function mockGenerate(level: OutlineLevel): GenerateResult {
     },
   };
 }
+
+export function buildOutlineCheckMessages(input: { volumeOutline?: string; chapterOutline?: string; scenes?: Beat[] }): ChatMessage[] {
+  const lines = [
+    input.volumeOutline ? `卷大纲：\n${input.volumeOutline}` : '',
+    input.chapterOutline ? `章大纲：\n${input.chapterOutline}` : '',
+    input.scenes?.length ? `场景卡：\n${input.scenes.map((s) => `- ${s.title}：${s.goal}`).join('\n')}` : '',
+  ].filter(Boolean);
+  return [
+    {
+      role: 'system',
+      content: [
+        '你是资深网文大纲评审。请检查结构逻辑：因果前置是否充分、是否有机械降神（Deus ex Machina）、节拍之间是否断裂。',
+        '只输出 JSON 数组，元素形如 {"type":"因果前置不足|疑似机械降神|节拍断裂","text":"涉及内容","reason":"问题说明","suggestion":"修改建议"}。',
+        '无问题输出 []。',
+      ].join('\n'),
+    },
+    { role: 'user', content: lines.join('\n\n').slice(0, 3000) },
+  ];
+}
