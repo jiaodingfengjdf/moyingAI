@@ -34,6 +34,21 @@ export function mockAnalysis(content: string): EmotionScores {
   return { buildUp: 7 - base, anticipation: 6 + base, release: 5 + base, driver: '模拟驱动：危险逼近，主角必须抉择' };
 }
 
+export function hormoneIndex(scores: { buildUp: number; anticipation: number; release: number }): number {
+  const raw = scores.buildUp * 0.3 + scores.anticipation * 0.35 + scores.release * 0.35;
+  return Math.round(Math.max(0, Math.min(10, raw)));
+}
+
+export type EmotionPhase = '压抑蓄力' | '期待推高' | '释放高潮' | '过渡';
+
+export function emotionPhase(scores: { buildUp: number; anticipation: number; release: number }): EmotionPhase {
+  const { buildUp, anticipation, release } = scores;
+  if (release >= 6 && release >= Math.max(buildUp, anticipation) - 1) return '释放高潮';
+  if (anticipation >= 6 && anticipation >= buildUp) return '期待推高';
+  if (buildUp >= 6) return '压抑蓄力';
+  return '过渡';
+}
+
 export function emotionWarnings(rows: Array<{ release: number; buildUp: number }>): string[] {
   const warnings: string[] = [];
   for (let i = 0; i + 2 < rows.length; i++) {
