@@ -9,7 +9,7 @@ import type { Editor, JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { parseDoc, serializeDoc, type Doc } from '@/lib/markdown';
-import { GHOST_BRANCHES, REWRITE_MODES, type RewriteMode } from '@/lib/ai/prompts';
+import { GHOST_BRANCHES, REWRITE_MODES, SENSE_MODES, type RewriteMode } from '@/lib/ai/prompts';
 import { STYLE_TARGETS, type StyleTarget } from '@/lib/ai/style';
 import type { BlockIdea } from '@/lib/ai/blockBreaker';
 import type { ConsistencyIssue } from '@/lib/types';
@@ -28,7 +28,7 @@ interface Props {
 
 const MENU_ACTIONS: { key: string; label: string; mode: RewriteMode | null }[] = [
   { key: 'expand', label: '扩写', mode: 'expand' },
-  { key: 'senses', label: '五感', mode: 'senses' },
+  { key: 'senses', label: '五感', mode: null },
   { key: 'pace', label: '节奏', mode: 'pace' },
   { key: 'mood', label: '意境', mode: 'mood' },
   { key: 'style', label: '文风', mode: null },
@@ -79,6 +79,7 @@ export default function ChapterEditor({
   const [blockNote, setBlockNote] = useState('');
   const [confirmIgnore, setConfirmIgnore] = useState(false);
   const [styleMenu, setStyleMenu] = useState<{ x: number; y: number } | null>(null);
+  const [senseMenu, setSenseMenu] = useState<{ x: number; y: number } | null>(null);
   const [wheel, setWheel] = useState<{ x: number; y: number; ideas: BlockIdea[]; loading: boolean; error: string } | null>(null);
   const replaceRangeRef = useRef<{ from: number; to: number } | null>(null);
   const onChangeRef = useRef(onChange);
@@ -244,6 +245,19 @@ export default function ChapterEditor({
     setStyleMenu({ x: rect.left, y: rect.bottom + 8 });
   }
 
+  function openSenseMenu() {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    const pos = empty ? from : to;
+    const rect = editor.view.coordsAtPos(pos);
+    setSenseMenu({ x: rect.left, y: rect.bottom + 8 });
+  }
+
+  function triggerSense(mode: RewriteMode) {
+    setSenseMenu(null);
+    triggerRewrite(mode);
+  }
+
   function triggerStyle(target: StyleTarget) {
     if (!editor) return;
     const { from, to, empty } = editor.state.selection;
@@ -378,6 +392,10 @@ export default function ChapterEditor({
       setStyleMenu(null);
       handled = true;
     }
+    if (senseMenu) {
+      setSenseMenu(null);
+      handled = true;
+    }
     if (wheel) {
       setWheel(null);
       handled = true;
@@ -449,6 +467,15 @@ export default function ChapterEditor({
               >
                 {a.label}
               </button>
+            ) : a.key === 'senses' ? (
+              <button
+                key={a.key}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => openSenseMenu()}
+                className="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+              >
+                {a.label}
+              </button>
             ) : (
               <button
                 key={a.key}
@@ -488,6 +515,23 @@ export default function ChapterEditor({
               className="rounded px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-100"
             >
               {STYLE_TARGETS[t].label}
+            </button>
+          ))}
+        </div>
+      )}
+      {senseMenu && (
+        <div
+          className="fixed z-50 flex flex-col gap-1 rounded-md border border-gray-200 bg-white px-1 py-1 shadow-lg"
+          style={{ left: Math.max(8, senseMenu.x), top: Math.max(8, senseMenu.y) }}
+        >
+          {SENSE_MODES.map((mode) => (
+            <button
+              key={mode}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => triggerSense(mode)}
+              className="rounded px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-100"
+            >
+              {REWRITE_MODES[mode].label}
             </button>
           ))}
         </div>

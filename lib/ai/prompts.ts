@@ -20,7 +20,9 @@ export const GHOST_BRANCHES: GhostBranchSpec[] = [
   { id: 'environment', label: '环境渲染/变故突生', instruction: '续写 100~300 字：用环境、氛围或一个突发变数推进场景，制造张力。' },
 ];
 
-export type RewriteMode = 'expand' | 'senses' | 'pace' | 'mood' | 'fix';
+export type RewriteMode = 'expand' | 'senses' | 'pace' | 'mood' | 'fix' | 'visual' | 'sound' | 'smell' | 'touch' | 'pain';
+
+export const SENSE_MODES: RewriteMode[] = ['visual', 'sound', 'smell', 'touch', 'pain'];
 
 export const REWRITE_MODES: Record<RewriteMode, { label: string; instruction: string }> = {
   expand: { label: '扩写', instruction: '在不改变情节与设定的前提下扩写给定片段，篇幅扩充约 1.5~2 倍，补充动作细节、对话反应与场景信息。' },
@@ -31,4 +33,9 @@ export const REWRITE_MODES: Record<RewriteMode, { label: string; instruction: st
     label: '一致性修复',
     instruction: '重写给定片段，修复其中与世界观设定、人物状态或前文事实不一致之处；保持情节走向、叙述视角与文风，不引入未经设定的新内容。',
   },
+  visual: { label: '视觉强化', instruction: '重写给定片段，只强化视觉描写：光影、色彩、构图、视线与画面层次；不增加声音、气味等其他感官信息。' },
+  sound: { label: '声音强化', instruction: '重写给定片段，只强化声音描写：环境音、对话质感、响度层次与静默对比；不增加视觉等冗余信息。' },
+  smell: { label: '气味强化', instruction: '重写给定片段，只强化气味与嗅觉联想：场景气味、人物气息、气味触发记忆；保持情节不变。' },
+  touch: { label: '触觉强化', instruction: '重写给定片段，只强化触觉描写：温度、质地、压力、衣料与皮肤接触；不堆砌无意义的其他感官词。' },
+  pain: { label: '痛觉强化', instruction: '重写给定片段，只强化痛觉与身体代价：受伤时的部位、程度、生理反应与忍痛细节；不夸张超出设定承受力。' },
 };
