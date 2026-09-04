@@ -44,6 +44,7 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
   const [autoCheckOn, setAutoCheckOn] = useState(true);
   const [emotionBusy, setEmotionBusy] = useState(false);
   const [emotionMsg, setEmotionMsg] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
   const lastCheckedHash = useRef('');
 
   const snapshots = data?.snapshots ?? [];
@@ -65,6 +66,33 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
     } finally {
       setEmotionBusy(false);
     }
+  }
+
+  async function copyChapter() {
+    if (!chapter) return;
+    try {
+      await navigator.clipboard.writeText(chapter.content || chapter.outline || '');
+      setExportMsg('已复制');
+      setTimeout(() => setExportMsg(''), 1500);
+    } catch {
+      setExportMsg('复制失败');
+    }
+  }
+
+  function downloadChapter() {
+    if (!chapter) return;
+    const text = `# ${chapter.title}\n\n${chapter.outline ? `> ${chapter.outline}\n\n` : ''}${chapter.content || ''}`;
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chapter.title}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setExportMsg('已下载');
+    setTimeout(() => setExportMsg(''), 1500);
   }
 
   async function analyzeVolume() {
@@ -184,6 +212,11 @@ export default function InspectorPanel({ chapter, saveState, wordCount, onRestor
           <div className="flex justify-between"><dt className="text-gray-500">保存状态</dt><dd>{saveLabel(saveState)}</dd></div>
           <div className="flex justify-between"><dt className="text-gray-500">快照数</dt><dd>{snapshots.length}</dd></div>
         </dl>
+        <div className="mt-2 flex items-center gap-2 text-xs">
+          <button onClick={() => void copyChapter()} disabled={!chapter} className="text-blue-600 disabled:text-gray-300">复制全文</button>
+          <button onClick={downloadChapter} disabled={!chapter} className="text-blue-600 disabled:text-gray-300">下载 .md</button>
+          {exportMsg && <span className="text-emerald-600">{exportMsg}</span>}
+        </div>
       </section>
 
       <section className="rounded-lg border border-gray-200 p-3">

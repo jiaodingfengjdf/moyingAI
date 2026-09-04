@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ChapterWithVolume, Volume } from '@/lib/types';
 import EntityPanel from './EntityPanel';
 import ForeshadowingPanel from './ForeshadowingPanel';
 import VolumeOutlineModal from './VolumeOutlineModal';
+
+interface SearchHit {
+  id: string;
+  title: string;
+  snippet: string;
+  volumeTitle: string;
+}
 
 interface Props {
   projectId: string;
@@ -30,6 +37,40 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
   const [confirmingVolumeId, setConfirmingVolumeId] = useState<string | null>(null);
   const [confirmingChapterId, setConfirmingChapterId] = useState<string | null>(null);
   const [outlineVolume, setOutlineVolume] = useState<Volume | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+
+  function runSearch(q: string) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      setSearchError('');
+      try {
+        const res = await fetch(`/api/projects/${projectId}/search?q=${encodeURIComponent(q.trim())}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? '检索失败');
+        setSearchResults(json.hits as SearchHit[]);
+      } catch (e) {
+        setSearchError((e as Error).message);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  }
+
+  function pickSearch(hit: SearchHit) {
+    onSelect(hit.id);
+    setSearchQuery('');
+    setSearchResults(null);
+  }
 
   async function call(url: string, options?: RequestInit) {
     await flushPending();
@@ -128,6 +169,32 @@ export default function Sidebar({ projectId, volumes, chapters, currentChapterId
         >
           + 卷
         </button>
+      </div>
+      <div className="mt-2">
+        <input
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            runSearch(e.target.value);
+          }}
+          placeholder="检索正文/大纲…"
+          className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+        />
+        {searching && <p className="mt-1 text-xs text-gray-400">检索中…</p>}
+        {searchError && <p className="mt-1 text-xs text-red-500">{searchError}</p>}
+        {searchResults && searchResults.length === 0 && !searching && <p className="mt-1 text-xs text-gray-400">无结果</p>}
+        {searchResults && searchResults.length > 0 && (
+          <ul className="mt-1 max-h-56 space-y-1 overflow-y-auto rounded border border-gray-100 bg-white p-1">
+            {searchResults.map((h) => (
+              <li key={h.id}>
+                <button onClick={() => pickSearch(h)} className="block w-full rounded px-2 py-1 text-left hover:bg-gray-100">
+                  <span className="text-xs font-medium text-gray-700">{h.title}{h.volumeTitle ? `（${h.volumeTitle}）` : ''}</span>
+                  <span className="block truncate text-xs text-gray-400">{h.snippet}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {error && <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">{error}</p>}
 

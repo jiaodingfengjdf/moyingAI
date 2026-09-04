@@ -40,6 +40,7 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
   const ghostRef = useRef<() => void>(() => {});
   const adoptRef = useRef<(index: number) => void>(() => {});
   const cancelRef = useRef<() => void>(() => {});
+  const escRef = useRef<() => boolean>(() => false);
   cancelRef.current = ai.cancel;
 
   useEffect(() => () => cancelRef.current(), []);
@@ -66,6 +67,12 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
             event.preventDefault();
             ghostRef.current();
             return true;
+          }
+          if (event.key === 'Escape') {
+            if (escRef.current()) {
+              event.preventDefault();
+              return true;
+            }
           }
           return false;
         },
@@ -187,6 +194,19 @@ export default function ChapterEditor({ chapterId, title, initialContent, onChan
     setOverlayPos(null);
     replaceRangeRef.current = null;
   }
+
+  escRef.current = () => {
+    let handled = false;
+    if (styleMenu) {
+      setStyleMenu(null);
+      handled = true;
+    }
+    if (overlayPos || ai.state.branches.length > 0 || ai.state.error) {
+      closeOverlay();
+      handled = true;
+    }
+    return handled;
+  };
 
   ghostRef.current = triggerGhostwrite;
   adoptRef.current = adopt;

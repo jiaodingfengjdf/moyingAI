@@ -8,6 +8,7 @@ import ChapterOutlineView from './ChapterOutlineView';
 import InspectorPanel from './InspectorPanel';
 import SettingsModal from './SettingsModal';
 import ComplianceModal from './ComplianceModal';
+import ShortcutsModal from './ShortcutsModal';
 import { useAutosave } from '@/lib/useAutosave';
 import { countWords } from '@/lib/wordCount';
 import type { ChapterWithVolume, Project, Volume } from '@/lib/types';
@@ -24,6 +25,8 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
   const [wordCount, setWordCount] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showCompliance, setShowCompliance] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [view, setView] = useState<'write' | 'outline'>('write');
   const contentRef = useRef('');
   const lastSavedRef = useRef('');
@@ -45,6 +48,7 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       });
       if (!res.ok) throw new Error('保存失败');
       lastSavedRef.current = content;
+      setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
       await mutateChapters();
     },
     [currentChapterId, mutateChapters],
@@ -99,6 +103,18 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
     };
   }, []);
 
+  // Ctrl/Cmd + S：立即保存
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void autosave.flush();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [autosave]);
+
   // 初始选中第一章；当前章被删除时回退到第一章
   useEffect(() => {
     if (chapters.length === 0) {
@@ -136,9 +152,10 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
           <span className="text-xs text-gray-500">墨影 AI</span>
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-500">
-          <SaveBadge state={autosave.state} onRetry={autosave.retry} />
+          <SaveBadge state={autosave.state} onRetry={autosave.retry} lastSavedAt={lastSavedAt} />
           <span>{wordCount} 字</span>
           <button onClick={() => setShowCompliance(true)} className="text-gray-500 hover:text-blue-600">合规</button>
+          <button onClick={() => setShowShortcuts(true)} className="text-gray-500 hover:text-blue-600">快捷键</button>
           <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-blue-600">设置</button>
         </div>
       </header>
@@ -168,7 +185,10 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
                   </button>
                 ))}
               </div>
-              {view === 'write' ? (
+              <div
+                className={view === 'write' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
+                style={view !== 'write' ? { display: 'none' } : undefined}
+              >
                 <ChapterEditor
                   key={`${current.id}-${refreshToken}`}
                   chapterId={current.id}
@@ -176,7 +196,8 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
                   initialContent={current.content}
                   onChange={handleContentChange}
                 />
-              ) : (
+              </div>
+              {view === 'outline' && (
                 <ChapterOutlineView
                   key={`${current.id}-${refreshToken}`}
                   chapter={current}
@@ -199,13 +220,14 @@ export default function WorkspaceShell({ projectId }: { projectId: string }) {
       </div>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showCompliance && <ComplianceModal projectId={projectId} onClose={() => setShowCompliance(false)} />}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }
 
-function SaveBadge({ state, onRetry }: { state: string; onRetry: () => void }) {
+function SaveBadge({ state, onRetry, lastSavedAt }: { state: string; onRetry: () => void; lastSavedAt: string | null }) {
   if (state === 'pending' || state === 'saving') return <span className="text-amber-600">保存中…</span>;
   if (state === 'error') return <button onClick={onRetry} className="text-red-600 underline">保存失败，点此重试</button>;
-  if (state === 'saved') return <span className="text-emerald-600">已保存</span>;
+  if (state === 'saved') return <span className="text-emerald-600">已保存 {lastSavedAt ?? ''}</span>;
   return <span>就绪</span>;
 }
